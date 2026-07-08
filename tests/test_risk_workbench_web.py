@@ -39,6 +39,21 @@ class RiskWorkbenchWebTests(unittest.TestCase):
         self.assertNotIn("https://cdn", html.lower())
         self.assertNotIn("analytics", html.lower())
 
+    def test_output_layout_keeps_downloads_reachable_and_reports_bounded(self):
+        html = (ROOT / "index.html").read_text(encoding="utf-8")
+        css = (ROOT / "assets/styles.css").read_text(encoding="utf-8")
+
+        self.assertLess(html.index('id="downloadPanel"'), html.index('id="boardReport"'))
+        self.assertLess(html.index('id="downloadPanel"'), html.index('id="detailedAnalysis"'))
+        self.assertIn('class="output-nav"', html)
+        self.assertIn('id="boardReportMeta"', html)
+        self.assertIn('id="detailedAnalysisMeta"', html)
+        self.assertIn('id="standardsAnnexMeta"', html)
+        self.assertIn('class="report-shell"', html)
+        self.assertIn(".report-shell pre", css)
+        self.assertIn("max-height", css)
+        self.assertIn("position: sticky", css)
+
     def test_generator_builds_cause_event_consequence_register_and_quality_fields(self):
         script = textwrap.dedent(
             """
@@ -343,6 +358,84 @@ class RiskWorkbenchWebTests(unittest.TestCase):
         )
 
         self.assertEqual(run_node(script), {"importedRows": 30, "lastLine": 30, "truncated": True})
+
+    def test_long_form_outputs_include_hundreds_of_lines_of_supporting_analysis(self):
+        script = textwrap.dedent(
+            """
+            const fs = require('fs');
+            const vm = require('vm');
+            const assert = require('assert');
+            const code = fs.readFileSync('assets/app.js', 'utf8');
+            const sandbox = { window: { URL }, console, document: undefined, URL };
+            sandbox.globalThis = sandbox.window;
+            vm.runInNewContext(code, sandbox, { filename: 'app.js' });
+            const WB = sandbox.window.RiskWorkbench;
+
+            const assessment = WB.buildAssessment({
+              company: 'NextDecade LNG, LLC',
+              country: 'United States',
+              website: 'https://www.next-decade.com',
+              evidenceText: [
+                'Rio Grande LNG construction schedule and critical path float are reviewed weekly by the project team.',
+                'Funding liquidity headroom and contingency draw are tracked against financing assumptions.',
+                'Permit obligations are mapped to regulators, site commitments, and field records.',
+                'Commissioning test failures and punch-list aging are monitored before startup handover.',
+                'OT recovery drills, privileged access, vendor remote access, and cyber access reviews are tracked.',
+                'Contractor safety near misses, stop-work events, and recordable incident rates are reviewed by workfront.',
+                'Bechtel EPC delivery, feed gas readiness, LNG offtake commitments, and marine logistics are critical dependencies.',
+                'Management has low appetite for safety, compliance, cyber, and uncontrolled startup risk.'
+              ].join('\\n'),
+              importedEvidence: [{ name: 'github:project-notes.md', text: [
+                'Schedule recovery action owners are assigned for critical path float erosion.',
+                'Treasury downside cases model cost growth, contingency use, and financing timing.',
+                'Permit evidence packs include closure proof, correspondence, and obligation owner.',
+                'Operations readiness reviews connect failed tests to procedures, training, spares, and hold points.',
+                'Cyber response exercises validate OT backup restoration, vendor access, and manual fallback.',
+                'Safety leadership reviews near misses by contractor, workfront, shift, and corrective action aging.'
+              ].join('\\n') }],
+              answers: {
+                objectives: 'Train 1 first gas, safe commissioning, and evidence-ready handover.',
+                incidents: 'No fatal events supplied; near-miss and stop-work signals still require trend review.',
+                risk_appetite: 'Low appetite for safety, compliance, cyber, and uncontrolled startup risk; moderate appetite for schedule recovery with proven controls.',
+                dependencies: 'Bechtel EPC, regulators, feed gas, offtakers, marine logistics, OT vendors, contractor workforce.'
+              }
+            });
+
+            assert.equal(assessment.review_gate.verdict, 'pass');
+            assert.ok(assessment.risk_register.every((risk) => risk.supporting_analysis));
+            assert.ok(assessment.risk_register.every((risk) => risk.supporting_analysis.evidence_interpretation.length >= 4));
+            assert.ok(assessment.risk_register.every((risk) => risk.supporting_analysis.mitigation_workplan.length >= 5));
+            assert.ok(assessment.risk_register.every((risk) => risk.supporting_analysis.board_questions.length >= 5));
+
+            const board = WB.toBoardMarkdown(assessment);
+            const detailed = WB.toDetailedAnalysisMarkdown(assessment);
+            const standards = WB.toStandardsMarkdown(assessment);
+            const prompts = WB.toPromptPackMarkdown();
+
+            assert.ok(board.split('\\n').length >= 220, `board lines ${board.split('\\n').length}`);
+            assert.ok(detailed.split('\\n').length >= 300, `detailed lines ${detailed.split('\\n').length}`);
+            assert.ok(standards.split('\\n').length >= 95, `standards lines ${standards.split('\\n').length}`);
+            assert.ok(prompts.split('\\n').length >= 95, `prompt lines ${prompts.split('\\n').length}`);
+            assert.ok(detailed.includes('Evidence Interpretation'));
+            assert.ok(detailed.includes('Management Assumptions'));
+            assert.ok(detailed.includes('Control Assurance Plan'));
+            assert.ok(detailed.includes('30 / 60 / 90 Day Workplan'));
+            assert.ok(board.includes('Risk Deep Dives'));
+
+            console.log(JSON.stringify({
+              boardLines: board.split('\\n').length,
+              detailedLines: detailed.split('\\n').length,
+              standardsLines: standards.split('\\n').length,
+              promptLines: prompts.split('\\n').length
+            }));
+            """
+        )
+
+        result = run_node(script)
+        self.assertGreaterEqual(result["boardLines"], 220)
+        self.assertGreaterEqual(result["detailedLines"], 300)
+        self.assertGreaterEqual(result["standardsLines"], 95)
+        self.assertGreaterEqual(result["promptLines"], 95)
 
     def test_github_json_files_and_directory_import_are_bounded(self):
         script = textwrap.dedent(

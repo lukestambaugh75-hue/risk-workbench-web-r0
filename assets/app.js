@@ -537,6 +537,113 @@
     };
   }
 
+  function findByIds(items, ids) {
+    var wanted = {};
+    (ids || []).forEach(function (id) {
+      wanted[id] = true;
+    });
+    return (items || []).filter(function (item) {
+      return wanted[item.id];
+    });
+  }
+
+  function formatEvidenceReference(item) {
+    if (!item) {
+      return "No evidence reference supplied.";
+    }
+    return item.id + " - " + item.claim + " (" + (item.source || item.path || "source") + (item.line_number ? ", line " + item.line_number : "") + ")";
+  }
+
+  function formatManagementReference(item) {
+    if (!item) {
+      return "No management answer supplied.";
+    }
+    return item.id + " - " + item.question + ": " + item.answer;
+  }
+
+  function buildSupportingAnalysis(template, evidencePack, managementAnswers, evidenceIdList, managementIdList, inherentScore, residualScore) {
+    var evidenceItems = findByIds(evidencePack, evidenceIdList);
+    var managementItems = findByIds(managementAnswers, managementIdList);
+    var primaryEvidence = evidenceItems[0];
+    var secondEvidence = evidenceItems[1];
+    var evidenceSummary = evidenceItems.map(formatEvidenceReference);
+    if (!evidenceSummary.length) {
+      evidenceSummary.push("No category-relevant evidence was found; gate should remain REVISE until supplied.");
+    }
+    return {
+      evidence_interpretation: [
+        "Primary evidence signal: " + formatEvidenceReference(primaryEvidence),
+        "Secondary evidence signal: " + formatEvidenceReference(secondEvidence),
+        "The evidence is relevant because it contains category-specific terms tied to " + template.category + " exposure.",
+        "The evidence should be treated as directional until source owner, date, and completeness are confirmed.",
+        "Evidence limitation: this browser run can only evaluate supplied text snippets, not the full external record unless imported."
+      ],
+      management_assumptions: [
+        managementItems.length ? "Management references: " + managementItems.map(formatManagementReference).join(" | ") : "No direct management answer was mapped; confirm objective, appetite, incidents, and dependency context.",
+        "Assumption: the owner role listed has authority to assign actions and escalate exceptions.",
+        "Assumption: the supplied evidence is current enough for the next review cycle.",
+        "Assumption: residual scores reflect controls operating as described, not merely planned controls.",
+        "Assumption: risk appetite remains unchanged until management updates it."
+      ],
+      score_support: [
+        "Inherent score " + inherentScore + " reflects likelihood " + template.likelihood + " x impact " + template.impact + ".",
+        "Residual score " + residualScore + " reflects likelihood " + template.residual_likelihood + " x impact " + template.residual_impact + ".",
+        "Residual reduction is only credible if existing controls are operating and the mitigation workplan is funded.",
+        "If evidence is stale, incomplete, or contradicted by management, move confidence down and re-score.",
+        "If a control gap has no owner or due date, residual likelihood should not be reduced."
+      ],
+      control_assurance_plan: [
+        "Confirm each existing control has a named control owner and a current evidence artifact.",
+        "Sample the evidence trail for the highest-impact control before board reporting.",
+        "Check whether the control prevents the event, detects it early, or only responds after impact.",
+        "Verify control cadence matches the risk velocity of " + template.risk_velocity + ".",
+        "Record test result, exception owner, corrective action, and next test date."
+      ],
+      mitigation_workplan: [
+        template.mitigation_actions[0],
+        template.mitigation_actions[1],
+        "Add a dated action log with accountable owner, decision needed, dependency, and blocker status.",
+        "Define the trigger that escalates this risk from management review to board attention.",
+        "Confirm whether the treatment type is still appropriate: " + template.treatment_type + ".",
+        "Identify budget, contract, people, or technology constraints that could prevent treatment completion."
+      ],
+      monitoring_plan: [
+        "Track KRI: " + template.kri + ".",
+        "Track early warning: " + template.early_warning + ".",
+        "Review frequency should increase if the KRI moves adversely for two consecutive cycles.",
+        "Archive evidence snapshots so trend movement can be audited later.",
+        "Tie each KRI breach to an owner action rather than a narrative status note."
+      ],
+      board_questions: [
+        "What decision is required now to keep the residual risk inside appetite?",
+        "Which evidence item would change the score most if it were wrong?",
+        "Which control is assumed to be effective but has not been independently tested?",
+        "What is the consequence of waiting one more review cycle?",
+        "Who owns the next action, what is the due date, and what blocker would trigger escalation?",
+        "What information would a skeptical director ask for before accepting this residual score?"
+      ],
+      red_team_tests: [
+        template.red_team_challenge,
+        "Try to disprove the score using stale evidence, missing evidence, or a contradictory management answer.",
+        "Ask whether the treatment action is measurable or just a management activity.",
+        "Look for hidden dependencies outside the named owner role.",
+        "Check whether the KRI would move early enough to prevent the event."
+      ],
+      postmortem_chain: [
+        template.postmortem_scenario,
+        "Missed signal: the early warning was present but not escalated to the right decision forum.",
+        "Failed control: an existing control existed on paper but was not proven under current conditions.",
+        "Decision gap: ownership, budget, timing, or authority was unclear when action was needed.",
+        "Evidence gap: the source record did not show whether treatment actions were completed and effective."
+      ],
+      open_evidence_requests: evidenceSummary.concat([
+        "Request a current owner-confirmed artifact for the leading KRI.",
+        "Request evidence that the mitigation action has a due date and closure proof.",
+        "Request confirmation that residual risk is inside or outside stated appetite."
+      ])
+    };
+  }
+
   function buildBoardReport(profile, risks) {
     var topRisks = risks
       .slice()
@@ -673,6 +780,15 @@
       var inherentScore = score(template.likelihood, template.impact);
       var residualScore = score(template.residual_likelihood, template.residual_impact);
       var effectiveness = residualScore <= Math.floor(inherentScore * 0.55) ? "Effective" : "Partially effective";
+      var supportingAnalysis = buildSupportingAnalysis(
+        template,
+        evidencePack,
+        managementAnswers,
+        selectedEvidenceIds,
+        selectedManagementIds,
+        inherentScore,
+        residualScore
+      );
       return {
         id: "R-" + String(index + 1).padStart(2, "0"),
         category: template.category,
@@ -712,7 +828,8 @@
         postmortem_scenario: template.postmortem_scenario,
         next_review_due: nextReviewDue(index, evidencePack),
         evidence_coverage: evidenceCoverage(evidencePack, { evidence_ids: selectedEvidenceIds }),
-        confidence: confidenceForEvidence(evidencePack)
+        confidence: confidenceForEvidence(evidencePack),
+        supporting_analysis: supportingAnalysis
       };
     });
     var assessment = {
@@ -993,63 +1110,253 @@
     return JSON.stringify({ evidence: assessment.evidence_pack || [] }, null, 2) + "\n";
   }
 
+  function addMarkdownList(lines, items) {
+    (items || []).forEach(function (item) {
+      lines.push("- " + neutralizeMarkdown(item));
+    });
+  }
+
+  function addNumberedMarkdownList(lines, items) {
+    (items || []).forEach(function (item, index) {
+      lines.push(String(index + 1) + ". " + neutralizeMarkdown(item));
+    });
+  }
+
+  function addRiskDeepDive(lines, risk, index) {
+    var support = risk.supporting_analysis || {};
+    lines.push("### " + neutralizeMarkdown(risk.id + " " + risk.title));
+    lines.push("");
+    lines.push("**Category:** " + neutralizeMarkdown(risk.category));
+    lines.push("**Owner:** " + neutralizeMarkdown(risk.owner));
+    lines.push("**Risk velocity:** " + neutralizeMarkdown(risk.risk_velocity));
+    lines.push("**Confidence:** " + neutralizeMarkdown(risk.confidence));
+    lines.push("**Evidence coverage:** " + neutralizeMarkdown(displayEvidenceCoverage(risk.evidence_coverage)));
+    lines.push("**Inherent score:** " + neutralizeMarkdown(String(risk.inherent_score)) + " (" + neutralizeMarkdown(risk.inherent_band) + ")");
+    lines.push("**Residual score:** " + neutralizeMarkdown(String(risk.residual_score)) + " (" + neutralizeMarkdown(risk.residual_band) + ")");
+    lines.push("");
+    lines.push("#### Cause, Event, Consequence");
+    lines.push("");
+    lines.push("- Cause: " + neutralizeMarkdown(risk.cause));
+    lines.push("- Event: " + neutralizeMarkdown(risk.risk_event));
+    lines.push("- Consequence: " + neutralizeMarkdown(risk.consequence));
+    lines.push("");
+    lines.push("#### Evidence Interpretation");
+    lines.push("");
+    addMarkdownList(lines, support.evidence_interpretation);
+    lines.push("");
+    lines.push("#### Management Assumptions");
+    lines.push("");
+    addMarkdownList(lines, support.management_assumptions);
+    lines.push("");
+    lines.push("#### Scoring Rationale");
+    lines.push("");
+    addMarkdownList(lines, support.score_support);
+    lines.push("");
+    lines.push("#### Existing Controls");
+    lines.push("");
+    addMarkdownList(lines, risk.existing_controls);
+    lines.push("");
+    lines.push("#### Control Gaps");
+    lines.push("");
+    addMarkdownList(lines, risk.control_gaps);
+    lines.push("");
+    lines.push("#### Control Assurance Plan");
+    lines.push("");
+    addNumberedMarkdownList(lines, support.control_assurance_plan);
+    lines.push("");
+    lines.push("#### Mitigation Actions");
+    lines.push("");
+    addNumberedMarkdownList(lines, risk.mitigation_actions);
+    lines.push("");
+    lines.push("#### 30 / 60 / 90 Day Workplan");
+    lines.push("");
+    addNumberedMarkdownList(lines, support.mitigation_workplan);
+    lines.push("");
+    lines.push("#### Monitoring Plan");
+    lines.push("");
+    addMarkdownList(lines, support.monitoring_plan);
+    lines.push("");
+    lines.push("#### Board Questions");
+    lines.push("");
+    addNumberedMarkdownList(lines, support.board_questions);
+    lines.push("");
+    lines.push("#### Red Team Tests");
+    lines.push("");
+    addNumberedMarkdownList(lines, support.red_team_tests);
+    lines.push("");
+    lines.push("#### Postmortem Chain");
+    lines.push("");
+    addNumberedMarkdownList(lines, support.postmortem_chain);
+    lines.push("");
+    lines.push("#### Open Evidence Requests");
+    lines.push("");
+    addMarkdownList(lines, support.open_evidence_requests);
+    lines.push("");
+    lines.push("#### Draft Acceptance Criteria");
+    lines.push("");
+    lines.push("- Evidence IDs are current, traceable, and category relevant.");
+    lines.push("- Owner accepts the action plan and can fund or escalate the work.");
+    lines.push("- Residual score remains inside stated appetite or is explicitly escalated.");
+    lines.push("- Next review date is set and tied to the KRI.");
+    lines.push("- Board decision, if needed, is written as an explicit ask.");
+    lines.push("");
+    lines.push("#### Analyst Note");
+    lines.push("");
+    lines.push("This is candidate risk " + neutralizeMarkdown(String(index + 1)) + " of the register. Treat the narrative as a source-bound draft: useful for review, but not final until management confirms the evidence, score, and workplan.");
+    lines.push("");
+  }
+
   function toBoardMarkdown(assessment) {
     var report = assessment.board_report;
     var risks = assessment.risk_register || [];
-    return (
-      "# " +
-      neutralizeMarkdown(report.headline) +
-      "\n\n## Summary\n\n" +
-      neutralizeMarkdown(report.summary) +
-      "\n\n## Top Risks\n\n" +
-      risks
-        .map(function (risk) {
-          return (
-            "- **" +
-            neutralizeMarkdown(risk.id) +
-            " " +
-            neutralizeMarkdown(risk.title) +
-            "** (" +
-            neutralizeMarkdown(risk.category) +
-            ", residual " +
-            neutralizeMarkdown(String(risk.residual_score)) +
-            "): " +
-            neutralizeMarkdown(risk.description) +
-            " Evidence: " +
-            neutralizeMarkdown(risk.evidence_ids.join(", ")) +
-            ". Owner: " +
-            neutralizeMarkdown(risk.owner) +
-            ". Mitigation: " +
-            neutralizeMarkdown((risk.mitigation_actions || []).join(" | ")) +
-            ". Challenge: " +
-            neutralizeMarkdown(risk.red_team_challenge) +
-            "."
-          );
-        })
-        .join("\n") +
-      "\n\n## Decisions Required\n\n" +
-      report.decisions_required.map(function (item) { return "- " + neutralizeMarkdown(item); }).join("\n") +
-      "\n\n## Limitations\n\n" +
-      report.limitations.map(function (item) { return "- " + neutralizeMarkdown(item); }).join("\n") +
-      "\n"
-    );
+    var lines = [];
+    lines.push("# " + neutralizeMarkdown(report.headline));
+    lines.push("");
+    lines.push("## Executive Summary");
+    lines.push("");
+    lines.push(neutralizeMarkdown(report.summary));
+    lines.push("");
+    lines.push("This board pack is intentionally detailed. It is designed to make evidence, assumptions, confidence, treatment work, and challenge questions visible before any risk is accepted as management-ready.");
+    lines.push("");
+    lines.push("## Register Snapshot");
+    lines.push("");
+    lines.push("- Company: " + neutralizeMarkdown(assessment.profile.company));
+    lines.push("- Country or market: " + neutralizeMarkdown(assessment.profile.country || "not supplied"));
+    lines.push("- Website/reference: " + neutralizeMarkdown(assessment.profile.website || "not supplied"));
+    lines.push("- Evidence items: " + neutralizeMarkdown(String((assessment.evidence_pack || []).length)));
+    lines.push("- Real evidence items: " + neutralizeMarkdown(String(countRealEvidence(assessment))));
+    lines.push("- Risks generated: " + neutralizeMarkdown(String(risks.length)));
+    lines.push("- Review gate: " + neutralizeMarkdown(assessment.review_gate.verdict.toUpperCase()));
+    lines.push("");
+    lines.push("## Top Risks");
+    lines.push("");
+    risks.forEach(function (risk) {
+      lines.push("- **" + neutralizeMarkdown(risk.id + " " + risk.title) + "**: " + neutralizeMarkdown(risk.category) + ", residual " + neutralizeMarkdown(String(risk.residual_score)) + ", owner " + neutralizeMarkdown(risk.owner) + ", evidence " + neutralizeMarkdown(displayEvidenceCoverage(risk.evidence_coverage)) + ".");
+    });
+    lines.push("");
+    lines.push("## Decisions Required");
+    lines.push("");
+    addMarkdownList(lines, report.decisions_required);
+    lines.push("");
+    lines.push("## Risk Deep Dives");
+    lines.push("");
+    risks.forEach(function (risk, index) {
+      addRiskDeepDive(lines, risk, index);
+    });
+    lines.push("## Cross-Risk Themes");
+    lines.push("");
+    lines.push("- Schedule, commissioning, safety, compliance, cyber/OT, and funding risks interact; do not review them only as isolated rows.");
+    lines.push("- Evidence quality is as important as score quality. A high score with weak evidence should trigger source collection, not false certainty.");
+    lines.push("- Controls should be tested against current project conditions, not accepted because they exist in a plan.");
+    lines.push("- Mitigation actions should have owners, due dates, evidence of completion, and escalation triggers.");
+    lines.push("- Board reporting should separate decisions, watch items, and management follow-up.");
+    lines.push("");
+    lines.push("## Limitations");
+    lines.push("");
+    addMarkdownList(lines, report.limitations);
+    lines.push("");
+    return lines.join("\n") + "\n";
+  }
+
+  function toDetailedAnalysisMarkdown(assessment) {
+    var risks = assessment.risk_register || [];
+    var lines = [];
+    lines.push("# " + neutralizeMarkdown(assessment.profile.company) + " Detailed Risk Analysis");
+    lines.push("");
+    lines.push("## Purpose");
+    lines.push("");
+    lines.push("This file is the long-form working analysis behind the risk register. It is intentionally verbose so reviewers can inspect evidence, assumptions, controls, scoring, treatment work, open questions, and failure modes without relying on terse spreadsheet cells.");
+    lines.push("");
+    lines.push("## Evidence Pack Summary");
+    lines.push("");
+    (assessment.evidence_pack || []).forEach(function (item) {
+      lines.push("- " + neutralizeMarkdown(formatEvidenceReference(item)) + " / confidence " + neutralizeMarkdown(item.confidence || ""));
+    });
+    lines.push("");
+    lines.push("## Management Answer Summary");
+    lines.push("");
+    if ((assessment.management_answers || []).length) {
+      (assessment.management_answers || []).forEach(function (item) {
+        lines.push("- " + neutralizeMarkdown(formatManagementReference(item)));
+      });
+    } else {
+      lines.push("- No management answers were supplied.");
+    }
+    lines.push("");
+    lines.push("## Method");
+    lines.push("");
+    lines.push("1. Normalize supplied evidence into evidence IDs.");
+    lines.push("2. Map evidence to risk categories using category-relevant signals.");
+    lines.push("3. Generate candidate risks only when evidence supports the category.");
+    lines.push("4. Keep management answers separate from evidence but visible as assumptions.");
+    lines.push("5. Attach controls, gaps, mitigations, KRIs, early warnings, and owner roles.");
+    lines.push("6. Challenge every risk with red-team and postmortem questions.");
+    lines.push("7. Block downloads when the review gate is marked REVISE.");
+    lines.push("");
+    lines.push("## Detailed Risk Sections");
+    lines.push("");
+    risks.forEach(function (risk, index) {
+      addRiskDeepDive(lines, risk, index);
+      lines.push("#### Extra Reviewer Checklist");
+      lines.push("");
+      lines.push("- Has the risk owner accepted the cause-event-consequence wording?");
+      lines.push("- Is every evidence item current, source-bound, and specific enough?");
+      lines.push("- Does the score change if the strongest evidence item is removed?");
+      lines.push("- Are controls independently testable?");
+      lines.push("- Are mitigations written as deliverables rather than intentions?");
+      lines.push("- Would a board member understand the decision needed from this narrative?");
+      lines.push("");
+    });
+    lines.push("## Register-Level Follow-Up");
+    lines.push("");
+    lines.push("- Confirm whether any category should be split into multiple risks because the evidence points to distinct causes.");
+    lines.push("- Confirm whether residual risk bands match appetite after mitigation, not before mitigation.");
+    lines.push("- Confirm whether each owner can act without waiting for a separate governance approval.");
+    lines.push("- Confirm whether any key evidence is absent because it sits in a private repo, filing, contract, or operational tracker.");
+    lines.push("- Confirm whether the board pack should separate urgent decisions from monitoring items.");
+    lines.push("");
+    return lines.join("\n") + "\n";
   }
 
   function toStandardsMarkdown(assessment) {
     var annex = assessment.standards_annex;
-    return (
-      "# " +
-      neutralizeMarkdown(annex.title) +
-      "\n\n## ISO 31000\n\n" +
-      annex.iso_31000.map(function (item) { return "- **" + neutralizeMarkdown(item.clause) + "**: " + neutralizeMarkdown(item.how); }).join("\n") +
-      "\n\n## COSO ERM\n\n" +
-      annex.coso_erm.map(function (item) { return "- **" + neutralizeMarkdown(item.component) + "**: " + neutralizeMarkdown(item.how); }).join("\n") +
-      "\n\n## NIST SP 800-30\n\n" +
-      annex.nist_sp_800_30.map(function (item) { return "- **" + neutralizeMarkdown(item.concept) + "**: " + neutralizeMarkdown(item.how); }).join("\n") +
-      "\n\n## Orange Book\n\n" +
-      annex.orange_book.map(function (item) { return "- **" + neutralizeMarkdown(item.concept) + "**: " + neutralizeMarkdown(item.how); }).join("\n") +
-      "\n"
-    );
+    var lines = [];
+    lines.push("# " + neutralizeMarkdown(annex.title));
+    lines.push("");
+    lines.push("This is a draft standards mapping, not a certification or conformance claim. It explains how the browser workbench supports risk-management practices and where management confirmation is still required.");
+    lines.push("");
+    [
+      { title: "ISO 31000", items: annex.iso_31000, key: "clause" },
+      { title: "COSO ERM", items: annex.coso_erm, key: "component" },
+      { title: "NIST SP 800-30", items: annex.nist_sp_800_30, key: "concept" },
+      { title: "Orange Book", items: annex.orange_book, key: "concept" }
+    ].forEach(function (section) {
+      lines.push("## " + section.title);
+      lines.push("");
+      (section.items || []).forEach(function (item) {
+        lines.push("### " + neutralizeMarkdown(item[section.key]));
+        lines.push("");
+        lines.push("- Mapping: " + neutralizeMarkdown(item.how));
+        lines.push("- Evidence in this run: risk IDs, evidence IDs, management answers, review gate status, and supporting analysis are preserved in downloadable artifacts.");
+        lines.push("- Management confirmation needed: confirm source completeness, owner accountability, scoring, and action status before relying on this as a formal record.");
+        lines.push("- Audit note: retain the generated JSON and evidence pack with the board report so future reviewers can reproduce the draft basis.");
+        lines.push("- Improvement note: if review finds weak evidence, rerun the workbench after importing the missing source file or GitHub path.");
+        lines.push("");
+      });
+    });
+    lines.push("## Risk-by-Risk Standards Crosswalk");
+    lines.push("");
+    (assessment.risk_register || []).forEach(function (risk) {
+      lines.push("### " + neutralizeMarkdown(risk.id + " " + risk.title));
+      lines.push("");
+      lines.push("- ISO 31000 assessment support: cause-event-consequence wording, criteria, treatment, monitoring, and reporting are visible.");
+      lines.push("- COSO support: owner, appetite alignment, performance impact, review question, and communication artifact are visible.");
+      lines.push("- NIST support: likelihood, impact, vulnerability/control gap, monitoring factor, and uncertainty are visible.");
+      lines.push("- Orange Book support: risk appetite, challenge, reporting, owner, and escalation question are visible.");
+      lines.push("- Conditionality: this row remains a draft until management validates evidence and action ownership.");
+      lines.push("");
+    });
+    return lines.join("\n") + "\n";
   }
 
   function toHeatMapHtml(assessment) {
@@ -1067,26 +1374,114 @@
     return [
       "# Risk Workbench Prompt Pack",
       "",
+      "Use this prompt pack when a human wants an AI model to enrich the browser-generated draft with current, source-bound research. Every prompt is written to prevent unsupported invention.",
+      "",
       "## Research Planner",
       "Plan targeted searches for current state, footprint, recent developments, regulatory constraints, peer disclosed risks, and evidence gaps.",
+      "",
+      "Required output:",
+      "- Research objective.",
+      "- Source classes to inspect.",
+      "- Search terms by risk category.",
+      "- Expected evidence artifacts.",
+      "- Known blind spots.",
+      "- Stop rule for insufficient evidence.",
+      "",
+      "Search categories:",
+      "- Schedule, construction, commissioning, contractor, critical path, recovery, float.",
+      "- Funding, liquidity, financing, covenant, contingency, cost growth, market access.",
+      "- Permit, regulator, approval, obligation, correspondence, enforcement, legal condition.",
+      "- Startup, operations readiness, punch-list, failed tests, spares, training, procedures.",
+      "- OT, cyber, backup, privileged access, vendor remote access, recovery drill.",
+      "- HSSE, safety, near miss, recordable incident, workfront, stop-work, corrective action.",
       "",
       "## Evidence Extractor",
       "Extract source-bound facts with evidence IDs, source path or URL, retrieval date, confidence, and the exact objective or dependency affected. Do not infer beyond the supplied source.",
       "",
+      "Required fields for every extracted fact:",
+      "- Evidence ID.",
+      "- Exact source name, URL, file path, or GitHub path.",
+      "- Retrieval date.",
+      "- Quoted or closely paraphrased fact.",
+      "- Risk category relevance.",
+      "- Confidence.",
+      "- Whether the fact supports cause, event, consequence, control, gap, mitigation, KRI, or appetite.",
+      "- Limitation or ambiguity.",
+      "",
       "## Risk Generator",
       "Generate category-specific risks only from approved evidence and management-answer IDs. Use cause-event-consequence wording. Separate existing controls, control gaps, mitigation actions, KRI, early warning, owner, appetite alignment, and review date.",
+      "",
+      "For each risk, produce:",
+      "- Title.",
+      "- Category.",
+      "- Cause.",
+      "- Event.",
+      "- Consequence.",
+      "- Evidence IDs.",
+      "- Management answer IDs.",
+      "- Existing controls.",
+      "- Control gaps.",
+      "- Inherent likelihood and impact.",
+      "- Residual likelihood and impact.",
+      "- Owner.",
+      "- Treatment type.",
+      "- Mitigation actions.",
+      "- KRI.",
+      "- Early warning.",
+      "- Confidence.",
+      "- Source limitations.",
       "",
       "## Risk Reviewer",
       "Reject unsupported risks, duplicate risks, stale facts, score drift, missing owners, weak controls, untestable mitigations, and not-applicable assumptions. Residual risk cannot exceed inherent risk.",
       "",
+      "Review checklist:",
+      "- Does every risk have category-relevant evidence?",
+      "- Is the evidence current enough for the review cycle?",
+      "- Is the risk specific to the company/project, not a generic template?",
+      "- Are management assumptions separate from public evidence?",
+      "- Does each mitigation action have an owner, due date, and proof standard?",
+      "- Is residual score lower only because current controls or funded actions justify it?",
+      "- Are limitations visible to a board reader?",
+      "",
       "## Red Team",
       "Attack every risk as if the register will fail in front of the board. Identify generic wording, missing evidence, false precision, weak mitigation, unowned controls, stale assumptions, and hidden dependencies.",
+      "",
+      "Red-team prompts:",
+      "- What would make this risk title misleading?",
+      "- What evidence is being stretched beyond what it says?",
+      "- Which hidden dependency could invalidate the mitigation?",
+      "- Which control is assumed rather than proven?",
+      "- What would a regulator, lender, contractor, or board member challenge?",
+      "- What score would change first if the strongest evidence item were removed?",
       "",
       "## Postmortem",
       "Assume the risk materialized six months later. Explain the missed signal, failed control, missing owner decision, and evidence that would have changed the outcome.",
       "",
+      "Postmortem prompts:",
+      "- What happened?",
+      "- What warning appeared first?",
+      "- Who saw it?",
+      "- Which meeting or report failed to escalate it?",
+      "- Which control did not work under real conditions?",
+      "- Which owner lacked authority, budget, or timing?",
+      "- What evidence would have changed the decision?",
+      "- What permanent control should be added?",
+      "",
       "## Board Pack",
-      "Summarize only approved risks, preserve limitations, separate public evidence from management assumptions, and call out the decisions needed before the register can be relied on."
+      "Summarize only approved risks, preserve limitations, separate public evidence from management assumptions, and call out the decisions needed before the register can be relied on.",
+      "",
+      "Board-pack structure:",
+      "- Executive summary.",
+      "- Top residual risks.",
+      "- Decisions required.",
+      "- Per-risk deep dives.",
+      "- Evidence limitations.",
+      "- Control assurance plan.",
+      "- 30 / 60 / 90 day workplan.",
+      "- Board questions.",
+      "- Red-team challenges.",
+      "- Postmortem scenarios.",
+      "- Open evidence requests."
     ].join("\n");
   }
 
@@ -1294,6 +1689,22 @@
     global.URL.revokeObjectURL(url);
   }
 
+  function reportLineCount(text) {
+    return text ? text.split("\n").length : 0;
+  }
+
+  function setReportOutput(textId, metaId, text) {
+    var output = global.document.getElementById(textId);
+    if (output) {
+      output.textContent = text;
+    }
+    var meta = global.document.getElementById(metaId);
+    if (meta) {
+      var lines = reportLineCount(text);
+      meta.textContent = lines ? String(lines) + " lines / preview capped" : "Not generated";
+    }
+  }
+
   function collectFormInput() {
     return {
       company: global.document.getElementById("company").value,
@@ -1327,13 +1738,14 @@
     global.document.getElementById("evidenceList").innerHTML = renderEvidenceList(assessment);
     global.document.getElementById("heatMap").innerHTML = renderVisualDashboard(assessment);
     global.document.getElementById("riskRegister").innerHTML = renderRiskTable(assessment);
-    global.document.getElementById("boardReport").textContent = toBoardMarkdown(assessment);
-    global.document.getElementById("standardsAnnex").textContent = toStandardsMarkdown(assessment);
+    setReportOutput("boardReport", "boardReportMeta", toBoardMarkdown(assessment));
+    setReportOutput("detailedAnalysis", "detailedAnalysisMeta", toDetailedAnalysisMarkdown(assessment));
+    setReportOutput("standardsAnnex", "standardsAnnexMeta", toStandardsMarkdown(assessment));
     global.document.getElementById("downloadPanel").hidden = assessment.review_gate.verdict !== "pass";
     var downloadStatus = global.document.getElementById("downloadStatus");
     if (downloadStatus) {
       downloadStatus.textContent = assessment.review_gate.verdict === "pass"
-        ? "Downloads are enabled for this passing assessment."
+        ? "Downloads are ready. Full reports stay detailed; previews below are capped for easier review."
         : "Downloads are disabled because this assessment is marked REVISE.";
     }
   }
@@ -1400,14 +1812,9 @@
         node.innerHTML = "";
       }
     });
-    var boardReport = global.document.getElementById("boardReport");
-    if (boardReport) {
-      boardReport.textContent = "";
-    }
-    var standardsAnnex = global.document.getElementById("standardsAnnex");
-    if (standardsAnnex) {
-      standardsAnnex.textContent = "";
-    }
+    setReportOutput("boardReport", "boardReportMeta", "");
+    setReportOutput("detailedAnalysis", "detailedAnalysisMeta", "");
+    setReportOutput("standardsAnnex", "standardsAnnexMeta", "");
     var downloadPanel = global.document.getElementById("downloadPanel");
     if (downloadPanel) {
       downloadPanel.hidden = true;
@@ -1587,6 +1994,11 @@
         downloadFile("board-report.md", "text/markdown", toBoardMarkdown(state.assessment));
       }
     });
+    doc.getElementById("downloadDetailed").addEventListener("click", function () {
+      if (state.assessment) {
+        downloadFile("detailed-analysis.md", "text/markdown", toDetailedAnalysisMarkdown(state.assessment));
+      }
+    });
     doc.getElementById("downloadStandards").addEventListener("click", function () {
       if (state.assessment) {
         downloadFile("standards-annex.md", "text/markdown", toStandardsMarkdown(state.assessment));
@@ -1612,6 +2024,7 @@
     toRiskRegisterJson: toRiskRegisterJson,
     toEvidencePackJson: toEvidencePackJson,
     toBoardMarkdown: toBoardMarkdown,
+    toDetailedAnalysisMarkdown: toDetailedAnalysisMarkdown,
     toStandardsMarkdown: toStandardsMarkdown,
     toHeatMapHtml: toHeatMapHtml,
     toPromptPackMarkdown: toPromptPackMarkdown,

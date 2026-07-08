@@ -30,6 +30,9 @@ textarea {
 }
 
 .app-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -38,6 +41,7 @@ textarea {
   background: var(--header);
   color: #fff;
   border-bottom: 4px solid var(--green);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.16);
 }
 
 h1,
@@ -120,7 +124,7 @@ h3 {
 
 .input-panel {
   position: sticky;
-  top: 0;
+  top: 88px;
 }
 
 .section-heading {
@@ -251,11 +255,62 @@ button.ghost {
   line-height: 1.45;
 }
 
+.output-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.output-nav a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 7px 10px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
 .output-block,
 .download-panel {
   margin-top: 16px;
   padding-top: 16px;
   border-top: 1px solid var(--line);
+}
+
+.download-panel {
+  padding: 12px;
+  border: 1px solid #b9d8c7;
+  border-left: 4px solid var(--green);
+  background: #f8fcfa;
+}
+
+.download-panel h3 {
+  margin-bottom: 12px;
+}
+
+.download-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.download-grid section {
+  min-width: 0;
+}
+
+.download-grid h4 {
+  margin: 0 0 8px;
+  color: #34404c;
+  font-size: 12px;
 }
 
 .visual-grid,
@@ -465,6 +520,68 @@ button.ghost {
   line-height: 1.45;
 }
 
+.report-block {
+  padding-top: 12px;
+}
+
+.report-shell {
+  border: 1px solid var(--line);
+  background: #fff;
+}
+
+.report-shell summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 48px;
+  padding: 12px;
+  cursor: pointer;
+  color: #25313d;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.report-shell summary::-webkit-details-marker {
+  display: none;
+}
+
+.report-shell summary::before {
+  content: "+";
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 22px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  color: var(--green);
+  font-weight: 700;
+}
+
+.report-shell[open] summary::before {
+  content: "-";
+}
+
+.report-shell summary > span:first-child {
+  flex: 1;
+}
+
+.report-meta {
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.report-shell pre {
+  max-height: min(52vh, 560px);
+  margin: 0;
+  border-radius: 0;
+  border-top: 1px solid #24364f;
+}
+
 pre {
   white-space: pre-wrap;
   overflow-x: auto;
@@ -484,10 +601,15 @@ pre {
   .input-panel {
     position: static;
   }
+
+  .download-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 620px) {
   .app-header {
+    position: static;
     flex-direction: column;
     align-items: flex-start;
     padding: 16px;

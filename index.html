@@ -122,63 +122,107 @@
           <h2 id="outputs-title">Register, heat map, and board pack</h2>
         </div>
 
+        <nav class="output-nav" aria-label="Output sections">
+          <a href="#reviewGateBlock">Gate</a>
+          <a href="#riskRegisterBlock">Register</a>
+          <a href="#boardReportBlock">Board</a>
+          <a href="#detailedAnalysisBlock">Detailed</a>
+          <a href="#downloadPanel">Downloads</a>
+        </nav>
+
         <div class="notice">
           <strong>Privacy mode:</strong> generation runs in this browser. No AI calls, telemetry, or remote logging are used. GitHub import is the only external request path and only runs when you click import.
         </div>
 
-        <section class="output-block">
+        <p id="downloadStatus" class="muted">Downloads appear after the review gate passes.</p>
+        <section id="downloadPanel" class="download-panel" hidden>
+          <h3>Downloads</h3>
+          <div class="download-grid">
+            <section>
+              <h4>Reports</h4>
+              <div class="button-row">
+                <button id="downloadBoard" type="button" class="secondary">board-report.md</button>
+                <button id="downloadDetailed" type="button" class="secondary">detailed-analysis.md</button>
+                <button id="downloadStandards" type="button" class="secondary">standards-annex.md</button>
+              </div>
+            </section>
+            <section>
+              <h4>Data</h4>
+              <div class="button-row">
+                <button id="downloadJson" type="button" class="secondary">assessment.json</button>
+                <button id="downloadCsv" type="button" class="secondary">risk-register.csv</button>
+                <button id="downloadRegisterJson" type="button" class="secondary">risk-register.json</button>
+                <button id="downloadEvidenceJson" type="button" class="secondary">evidence-pack.json</button>
+              </div>
+            </section>
+            <section>
+              <h4>Supporting</h4>
+              <div class="button-row">
+                <button id="downloadHeatMap" type="button" class="secondary">heat-map.html</button>
+                <button id="downloadPrompts" type="button" class="secondary">prompt-pack.md</button>
+              </div>
+            </section>
+          </div>
+        </section>
+
+        <section id="reviewGateBlock" class="output-block">
           <h3>Review Gate</h3>
           <div id="gateDetails">
             <p>Run an assessment to see gate findings.</p>
           </div>
         </section>
 
-        <section class="output-block">
+        <section id="qualityChallengeBlock" class="output-block">
           <h3>Quality Challenge</h3>
           <div id="qualityReview">
             <p>Run an assessment to see evidence, red-team, and postmortem challenges.</p>
           </div>
         </section>
 
-        <section class="output-block">
+        <section id="evidenceBlock" class="output-block">
           <h3>Evidence</h3>
           <ul id="evidenceList" class="evidence-list"></ul>
         </section>
 
-        <section class="output-block">
+        <section id="visualDashboardBlock" class="output-block">
           <h3>Visual Dashboard</h3>
           <div id="heatMap"></div>
         </section>
 
-        <section class="output-block">
+        <section id="riskRegisterBlock" class="output-block">
           <h3>Risk Register</h3>
           <div id="riskRegister" class="scroll-box"></div>
         </section>
 
-        <section class="output-block">
-          <h3>Board Report</h3>
-          <pre id="boardReport"></pre>
+        <section id="boardReportBlock" class="output-block report-block">
+          <details class="report-shell">
+            <summary>
+              <span>Board Report</span>
+              <span id="boardReportMeta" class="report-meta">Not generated</span>
+            </summary>
+            <pre id="boardReport"></pre>
+          </details>
         </section>
 
-        <section class="output-block">
-          <h3>Standards Annex</h3>
-          <pre id="standardsAnnex"></pre>
+        <section id="detailedAnalysisBlock" class="output-block report-block">
+          <details class="report-shell">
+            <summary>
+              <span>Detailed Analysis</span>
+              <span id="detailedAnalysisMeta" class="report-meta">Not generated</span>
+            </summary>
+            <pre id="detailedAnalysis"></pre>
+          </details>
         </section>
 
-        <section id="downloadPanel" class="download-panel" hidden>
-          <h3>Downloads</h3>
-          <div class="button-row">
-            <button id="downloadJson" type="button" class="secondary">assessment.json</button>
-            <button id="downloadCsv" type="button" class="secondary">risk-register.csv</button>
-            <button id="downloadRegisterJson" type="button" class="secondary">risk-register.json</button>
-            <button id="downloadEvidenceJson" type="button" class="secondary">evidence-pack.json</button>
-            <button id="downloadBoard" type="button" class="secondary">board-report.md</button>
-            <button id="downloadStandards" type="button" class="secondary">standards-annex.md</button>
-            <button id="downloadHeatMap" type="button" class="secondary">heat-map.html</button>
-            <button id="downloadPrompts" type="button" class="secondary">prompt-pack.md</button>
-          </div>
+        <section id="standardsAnnexBlock" class="output-block report-block">
+          <details class="report-shell">
+            <summary>
+              <span>Standards Annex</span>
+              <span id="standardsAnnexMeta" class="report-meta">Not generated</span>
+            </summary>
+            <pre id="standardsAnnex"></pre>
+          </details>
         </section>
-        <p id="downloadStatus" class="muted">Downloads appear after the review gate passes.</p>
       </section>
     </main>
 
