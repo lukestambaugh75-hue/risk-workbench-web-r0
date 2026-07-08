@@ -34,6 +34,8 @@ class RiskWorkbenchWebTests(unittest.TestCase):
         html = index.read_text(encoding="utf-8")
         self.assertIn("assets/app.js", html)
         self.assertIn("assets/styles.css", html)
+        self.assertIn("assets/app.js?v=", html)
+        self.assertIn("assets/styles.css?v=", html)
         self.assertIn("Risk Workbench", html)
         self.assertIn("github", html.lower())
         self.assertNotIn("https://cdn", html.lower())
