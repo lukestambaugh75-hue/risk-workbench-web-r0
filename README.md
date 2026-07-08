@@ -2,6 +2,12 @@
 
 Static GitHub Pages app for browser-only enterprise risk register generation.
 
+Live app:
+
+```text
+https://lukestambaugh75-hue.github.io/risk-workbench-web-r0/
+```
+
 ## What It Does
 
 - Accepts typed company details, evidence notes, and management answers.
