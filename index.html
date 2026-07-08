@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https://api.github.com; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none'"
+    >
+    <title>Risk Workbench</title>
+    <link rel="stylesheet" href="assets/styles.css">
+  </head>
+  <body>
+    <header class="app-header">
+      <div>
+        <p class="eyebrow">Evidence-first browser risk manager</p>
+        <h1>Risk Workbench</h1>
+      </div>
+      <div class="status-strip" aria-label="Assessment status">
+        <span id="gate" class="status-chip revise">NOT RUN</span>
+        <span><strong id="evidenceCount">0</strong> evidence items</span>
+        <span><strong id="riskCount">0</strong> risks</span>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <section class="input-panel" aria-labelledby="inputs-title">
+        <div class="section-heading">
+          <p class="eyebrow">Inputs</p>
+          <h2 id="inputs-title">Company, evidence, and files</h2>
+        </div>
+
+        <div class="grid two">
+          <label>
+            Company
+            <input id="company" type="text" autocomplete="off" placeholder="NextDecade LNG, LLC">
+          </label>
+          <label>
+            Country or market
+            <input id="country" type="text" autocomplete="off" placeholder="United States">
+          </label>
+        </div>
+        <label>
+          Website or reference URL
+          <input id="website" type="url" autocomplete="off" placeholder="https://www.next-decade.com">
+        </label>
+
+        <label>
+          Evidence notes
+          <textarea id="evidenceText" rows="8" placeholder="Add one evidence note per line. Evidence can come from public filings, project notes, source excerpts, or your own research."></textarea>
+        </label>
+
+        <div class="section-heading compact">
+          <p class="eyebrow">Four questions research cannot answer</p>
+        </div>
+        <div class="grid two">
+          <label>
+            Current objectives
+            <textarea id="objectives" rows="3" placeholder="Top business objectives this year"></textarea>
+          </label>
+          <label>
+            Incidents or near misses
+            <textarea id="incidents" rows="3" placeholder="Known incidents in the last 24 months"></textarea>
+          </label>
+          <label>
+            Risk appetite
+            <textarea id="riskAppetite" rows="3" placeholder="Low appetite for safety and compliance risk..."></textarea>
+          </label>
+          <label>
+            Critical dependencies
+            <textarea id="dependencies" rows="3" placeholder="Key contractors, suppliers, systems, permits, or counterparties"></textarea>
+          </label>
+        </div>
+
+        <div class="import-panel">
+          <div>
+            <p class="eyebrow">Local files</p>
+            <label class="file-box">
+              Add text files
+              <input id="fileInput" type="file" multiple accept=".txt,.md,.csv,.json,.html,.htm,.log,.yaml,.yml,.xml">
+            </label>
+          </div>
+          <div>
+            <p class="eyebrow">GitHub files</p>
+            <label>
+              GitHub blob or raw URL
+              <input id="githubUrl" type="url" autocomplete="off" placeholder="https://github.com/owner/repo/blob/main/path/file.md">
+            </label>
+            <button id="parseGithubUrl" type="button" class="secondary">Parse URL</button>
+            <div class="grid two">
+              <label>Owner<input id="githubOwner" type="text" autocomplete="off"></label>
+              <label>Repo<input id="githubRepo" type="text" autocomplete="off"></label>
+              <label>Ref<input id="githubRef" type="text" autocomplete="off" placeholder="main"></label>
+              <label>Path<input id="githubPath" type="text" autocomplete="off" placeholder="docs/source.md"></label>
+            </div>
+            <label>
+              Optional token for private repos
+              <input id="githubToken" type="password" autocomplete="off" placeholder="Fine-grained token, kept only for this fetch">
+            </label>
+            <div class="button-row">
+              <button id="importGithub" type="button" class="secondary">Import GitHub File</button>
+              <button id="clearImports" type="button" class="ghost">Clear Imports</button>
+            </div>
+            <p id="importStatus" class="muted">GitHub import calls only `api.github.com` after you click import.</p>
+          </div>
+        </div>
+
+        <div class="imported">
+          <p class="eyebrow">Imported evidence files</p>
+          <ul id="importedFiles"></ul>
+        </div>
+
+        <div class="button-row sticky-actions">
+          <button id="generate" type="button">Generate Risk Register</button>
+          <button id="sample" type="button" class="secondary">Load NextDecade Sample</button>
+        </div>
+      </section>
+
+      <section class="output-panel" aria-labelledby="outputs-title">
+        <div class="section-heading">
+          <p class="eyebrow">Outputs</p>
+          <h2 id="outputs-title">Register, heat map, and board pack</h2>
+        </div>
+
+        <div class="notice">
+          <strong>Privacy mode:</strong> generation runs in this browser. No AI calls, telemetry, or remote logging are used. GitHub import is the only external request path and only runs when you click import.
+        </div>
+
+        <section class="output-block">
+          <h3>Review Gate</h3>
+          <div id="gateDetails">
+            <p>Run an assessment to see gate findings.</p>
+          </div>
+        </section>
+
+        <section class="output-block">
+          <h3>Evidence</h3>
+          <ul id="evidenceList" class="evidence-list"></ul>
+        </section>
+
+        <section class="output-block">
+          <h3>Residual Heat Map</h3>
+          <div id="heatMap" class="scroll-box"></div>
+        </section>
+
+        <section class="output-block">
+          <h3>Risk Register</h3>
+          <div id="riskRegister" class="scroll-box"></div>
+        </section>
+
+        <section class="output-block">
+          <h3>Board Report</h3>
+          <pre id="boardReport"></pre>
+        </section>
+
+        <section class="output-block">
+          <h3>Standards Annex</h3>
+          <pre id="standardsAnnex"></pre>
+        </section>
+
+        <section id="downloadPanel" class="download-panel" hidden>
+          <h3>Downloads</h3>
+          <div class="button-row">
+            <button id="downloadJson" type="button" class="secondary">assessment.json</button>
+            <button id="downloadCsv" type="button" class="secondary">risk-register.csv</button>
+            <button id="downloadRegisterJson" type="button" class="secondary">risk-register.json</button>
+            <button id="downloadEvidenceJson" type="button" class="secondary">evidence-pack.json</button>
+            <button id="downloadBoard" type="button" class="secondary">board-report.md</button>
+            <button id="downloadStandards" type="button" class="secondary">standards-annex.md</button>
+            <button id="downloadHeatMap" type="button" class="secondary">heat-map.html</button>
+            <button id="downloadPrompts" type="button" class="secondary">prompt-pack.md</button>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <script src="assets/app.js"></script>
+  </body>
+</html>
