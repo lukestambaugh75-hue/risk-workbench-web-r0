@@ -158,6 +158,172 @@ class RiskWorkbenchWebTests(unittest.TestCase):
 
         self.assertEqual(run_node(script), {"visualDashboard": True})
 
+    def test_visual_summary_includes_decision_cockpit_layers(self):
+        script = textwrap.dedent(
+            """
+            const fs = require('fs');
+            const vm = require('vm');
+            const assert = require('assert');
+            const code = fs.readFileSync('assets/app.js', 'utf8');
+            const sandbox = { window: { URL }, console, document: undefined, URL };
+            sandbox.globalThis = sandbox.window;
+            vm.runInNewContext(code, sandbox, { filename: 'app.js' });
+            const WB = sandbox.window.RiskWorkbench;
+
+            const assessment = WB.buildAssessment({
+              company: 'NextDecade LNG, LLC',
+              country: 'United States',
+              website: 'https://www.next-decade.com',
+              evidenceText: [
+                'Rio Grande LNG construction schedule and critical path float are reviewed weekly by the project team.',
+                'Funding liquidity headroom and contingency draw are tracked against financing assumptions.',
+                'Permit obligations are mapped to regulators, site commitments, and field records.',
+                'Commissioning test failures and punch-list aging are monitored before startup handover.',
+                'OT recovery drills, privileged access, vendor remote access, and cyber access reviews are tracked.',
+                'Contractor safety near misses, stop-work events, and recordable incident rates are reviewed by workfront.',
+                'Bechtel EPC delivery, feed gas readiness, LNG offtake commitments, and marine logistics are critical dependencies.',
+                'Management has low appetite for safety, compliance, cyber, and uncontrolled startup risk.'
+              ].join('\\n'),
+              importedEvidence: [{ name: 'github:project-notes.md', text: [
+                'Schedule recovery action owners are assigned for critical path float erosion.',
+                'Treasury downside cases model cost growth, contingency use, and financing timing.',
+                'Permit evidence packs include closure proof, correspondence, and obligation owner.',
+                'Operations readiness reviews connect failed tests to procedures, training, spares, and hold points.',
+                'Cyber response exercises validate OT backup restoration, vendor access, and manual fallback.',
+                'Safety leadership reviews near misses by contractor, workfront, shift, and corrective action aging.'
+              ].join('\\n') }],
+              answers: {
+                objectives: 'Train 1 first gas, safe commissioning, and evidence-ready handover.',
+                incidents: 'No fatal events supplied; near-miss and stop-work signals still require trend review.',
+                risk_appetite: 'Low appetite for safety, compliance, cyber, and uncontrolled startup risk; moderate appetite for schedule recovery with proven controls.',
+                dependencies: 'Bechtel EPC, regulators, feed gas, offtakers, marine logistics, OT vendors, contractor workforce.'
+              }
+            });
+
+            const visuals = assessment.visuals;
+            console.log(JSON.stringify({
+              hasDecisionSummary: Boolean(visuals.decision_summary),
+              hasRiskMotion: Boolean(visuals.risk_motion),
+              hasTreatmentAssurance: Boolean(visuals.treatment_assurance),
+              hasEvidenceIntelligence: Boolean(visuals.evidence_intelligence),
+              hasKriWatchlist: Boolean(visuals.kri_watchlist),
+              hasDependencyScenarios: Boolean(visuals.dependency_scenarios),
+              totalRisks: visuals.decision_summary ? visuals.decision_summary.total_risks : 0,
+              principalRisks: visuals.decision_summary ? visuals.decision_summary.principal_risks.length : 0,
+              decisionsNeeded: visuals.decision_summary ? visuals.decision_summary.decisions_needed.length : 0,
+              reviewsDue: visuals.decision_summary ? visuals.decision_summary.reviews_due.length : 0,
+              motionRows: visuals.risk_motion ? visuals.risk_motion.length : 0,
+              motionHasReduction: visuals.risk_motion ? visuals.risk_motion.every((item) => typeof item.reduction_percent === 'number') : false,
+              motionHasAppetiteStatus: visuals.risk_motion ? visuals.risk_motion.every((item) => item.appetite_status) : false,
+              actionRunwayThirty: visuals.treatment_assurance ? visuals.treatment_assurance.action_runway.thirty.length : 0,
+              ownerWorkload: visuals.treatment_assurance ? visuals.treatment_assurance.owner_workload.length : 0,
+              coverageRows: visuals.evidence_intelligence ? visuals.evidence_intelligence.coverage_rows.length : 0,
+              openRequests: visuals.evidence_intelligence ? visuals.evidence_intelligence.open_requests.length : 0,
+              kriRows: visuals.kri_watchlist ? visuals.kri_watchlist.length : 0,
+              dependencies: visuals.dependency_scenarios ? visuals.dependency_scenarios.dependencies.length : 0,
+              scenarioCards: visuals.dependency_scenarios ? visuals.dependency_scenarios.scenario_cards.length : 0
+            }));
+            """
+        )
+
+        result = run_node(script)
+        self.assertTrue(result["hasDecisionSummary"])
+        self.assertTrue(result["hasRiskMotion"])
+        self.assertTrue(result["hasTreatmentAssurance"])
+        self.assertTrue(result["hasEvidenceIntelligence"])
+        self.assertTrue(result["hasKriWatchlist"])
+        self.assertTrue(result["hasDependencyScenarios"])
+        self.assertGreaterEqual(result["totalRisks"], 6)
+        self.assertGreaterEqual(result["principalRisks"], 1)
+        self.assertGreaterEqual(result["decisionsNeeded"], 3)
+        self.assertGreaterEqual(result["reviewsDue"], 3)
+        self.assertGreaterEqual(result["motionRows"], 6)
+        self.assertTrue(result["motionHasReduction"])
+        self.assertTrue(result["motionHasAppetiteStatus"])
+        self.assertGreaterEqual(result["actionRunwayThirty"], 1)
+        self.assertGreaterEqual(result["ownerWorkload"], 1)
+        self.assertGreaterEqual(result["coverageRows"], 6)
+        self.assertGreaterEqual(result["openRequests"], 6)
+        self.assertGreaterEqual(result["kriRows"], 6)
+        self.assertGreaterEqual(result["dependencies"], 4)
+        self.assertGreaterEqual(result["scenarioCards"], 6)
+
+    def test_visual_dashboard_renders_decision_cockpit_sections(self):
+        script = textwrap.dedent(
+            """
+            const fs = require('fs');
+            const vm = require('vm');
+            const code = fs.readFileSync('assets/app.js', 'utf8');
+            const css = fs.readFileSync('assets/styles.css', 'utf8');
+            const sandbox = { window: { URL }, console, document: undefined, URL };
+            sandbox.globalThis = sandbox.window;
+            vm.runInNewContext(code, sandbox, { filename: 'app.js' });
+            const WB = sandbox.window.RiskWorkbench;
+
+            const assessment = WB.buildAssessment({
+              company: 'NextDecade LNG, LLC',
+              country: 'United States',
+              website: 'https://www.next-decade.com',
+              evidenceText: [
+                'Rio Grande LNG construction schedule and critical path float are reviewed weekly by the project team.',
+                'Funding liquidity headroom and contingency draw are tracked against financing assumptions.',
+                'Permit obligations are mapped to regulators, site commitments, and field records.',
+                'Commissioning test failures and punch-list aging are monitored before startup handover.',
+                'OT recovery drills, privileged access, vendor remote access, and cyber access reviews are tracked.',
+                'Contractor safety near misses, stop-work events, and recordable incident rates are reviewed by workfront.',
+                'Bechtel EPC delivery, feed gas readiness, LNG offtake commitments, and marine logistics are critical dependencies.',
+                'Management has low appetite for safety, compliance, cyber, and uncontrolled startup risk.'
+              ].join('\\n'),
+              importedEvidence: [],
+              answers: {
+                objectives: 'Train 1 first gas, safe commissioning, and evidence-ready handover.',
+                risk_appetite: 'Low appetite for safety, compliance, cyber, and uncontrolled startup risk; moderate appetite for schedule recovery with proven controls.',
+                dependencies: 'Bechtel EPC, regulators, feed gas, offtakers, marine logistics, OT vendors, contractor workforce.'
+              }
+            });
+
+            const dashboard = WB.renderVisualDashboard(assessment);
+            console.log(JSON.stringify({
+              hasDecisionStrip: dashboard.includes('Board Decision Strip'),
+              hasRiskMotion: dashboard.includes('Risk Motion'),
+              hasTreatment: dashboard.includes('Treatment and Assurance'),
+              hasEvidence: dashboard.includes('Evidence Intelligence'),
+              hasKri: dashboard.includes('KRI Watchlist'),
+              hasDependency: dashboard.includes('Dependency and Scenario Stress'),
+              hasDecisionClass: dashboard.includes('decision-strip'),
+              hasMotionClass: dashboard.includes('motion-table'),
+              hasTreatmentClass: dashboard.includes('treatment-board'),
+              hasEvidenceClass: dashboard.includes('evidence-intelligence'),
+              hasKriClass: dashboard.includes('kri-watchlist'),
+              hasDependencyClass: dashboard.includes('dependency-scenarios'),
+              cssHasDecisionStrip: css.includes('.decision-strip'),
+              cssHasMotionTable: css.includes('.motion-table'),
+              cssHasStatusPill: css.includes('.status-pill'),
+              cssHasKriWatchlist: css.includes('.kri-watchlist'),
+              noInlineStyle: !dashboard.includes('style=')
+            }));
+            """
+        )
+
+        result = run_node(script)
+        self.assertTrue(result["hasDecisionStrip"])
+        self.assertTrue(result["hasRiskMotion"])
+        self.assertTrue(result["hasTreatment"])
+        self.assertTrue(result["hasEvidence"])
+        self.assertTrue(result["hasKri"])
+        self.assertTrue(result["hasDependency"])
+        self.assertTrue(result["hasDecisionClass"])
+        self.assertTrue(result["hasMotionClass"])
+        self.assertTrue(result["hasTreatmentClass"])
+        self.assertTrue(result["hasEvidenceClass"])
+        self.assertTrue(result["hasKriClass"])
+        self.assertTrue(result["hasDependencyClass"])
+        self.assertTrue(result["cssHasDecisionStrip"])
+        self.assertTrue(result["cssHasMotionTable"])
+        self.assertTrue(result["cssHasStatusPill"])
+        self.assertTrue(result["cssHasKriWatchlist"])
+        self.assertTrue(result["noInlineStyle"])
+
     def test_visual_dashboard_avoids_inline_styles_blocked_by_csp(self):
         script = textwrap.dedent(
             """

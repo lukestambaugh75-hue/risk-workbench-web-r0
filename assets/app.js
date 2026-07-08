@@ -513,12 +513,83 @@
     };
   }
 
+  function scoreReductionPercent(risk) {
+    if (!risk || !risk.inherent_score) {
+      return 0;
+    }
+    return Math.max(0, Math.round(((risk.inherent_score - risk.residual_score) / risk.inherent_score) * 100));
+  }
+
+  function appetiteStatusForRisk(risk) {
+    var appetite = cleanText(risk.appetite_alignment).toLowerCase();
+    if (risk.residual_score >= 10 || appetite.indexOf("low appetite") !== -1) {
+      return "Escalate";
+    }
+    if (risk.residual_score >= 6 || appetite.indexOf("confirm") !== -1) {
+      return "Watch";
+    }
+    return "Inside appetite";
+  }
+
+  function countBy(items, fn) {
+    return (items || []).reduce(function (acc, item) {
+      var key = fn(item);
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+  }
+
+  function objectCountsToRows(counts) {
+    return Object.keys(counts || {})
+      .sort()
+      .map(function (key) {
+        return { label: key, value: counts[key] };
+      });
+  }
+
+  function extractDependencyList(assessment) {
+    var answer = (assessment.management_answers || []).filter(function (item) {
+      return cleanText(item.question).toLowerCase().indexOf("dependencies") !== -1;
+    })[0];
+    var source = answer ? answer.answer : "";
+    var dependencies = source
+      .replace(/\band\b/gi, ",")
+      .split(/[,;|]/)
+      .map(function (item) { return cleanText(item); })
+      .filter(Boolean);
+    if (!dependencies.length) {
+      dependencies = ["Board decision cadence", "Control owner capacity", "Evidence availability", "Treatment funding"];
+    }
+    return dependencies;
+  }
+
   function buildVisualSummary(assessment) {
     var risks = assessment.risk_register || [];
     var categoryCounts = {};
     risks.forEach(function (risk) {
       categoryCounts[risk.category] = (categoryCounts[risk.category] || 0) + 1;
     });
+    var riskMotion = risks.map(function (risk) {
+      return {
+        id: risk.id,
+        title: risk.title,
+        category: risk.category,
+        inherent_score: risk.inherent_score,
+        residual_score: risk.residual_score,
+        reduction_percent: scoreReductionPercent(risk),
+        residual_band: risk.residual_band,
+        velocity: risk.risk_velocity,
+        appetite_status: appetiteStatusForRisk(risk),
+        owner: risk.owner
+      };
+    });
+    var principalRisks = riskMotion
+      .slice()
+      .sort(function (a, b) { return b.residual_score - a.residual_score; })
+      .filter(function (risk, index) { return risk.residual_score >= 10 || index < 3; })
+      .slice(0, 5);
+    var risksByOwner = objectCountsToRows(countBy(risks, function (risk) { return risk.owner; }));
+    var dependencies = extractDependencyList(assessment);
     return {
       top_residual_risks: risks
         .slice()
@@ -533,7 +604,87 @@
       control_effectiveness: risks.reduce(function (acc, risk) {
         acc[risk.control_effectiveness] = (acc[risk.control_effectiveness] || 0) + 1;
         return acc;
-      }, {})
+      }, {}),
+      decision_summary: {
+        total_risks: risks.length,
+        principal_risks: principalRisks,
+        appetite_breaches: riskMotion.filter(function (risk) { return risk.appetite_status === "Escalate"; }),
+        decisions_needed: principalRisks.map(function (risk) {
+          return risk.id + ": confirm appetite position, owner authority, treatment funding, and escalation trigger.";
+        }),
+        reviews_due: risks
+          .slice()
+          .sort(function (a, b) { return String(a.next_review_due).localeCompare(String(b.next_review_due)); })
+          .slice(0, 5)
+          .map(function (risk) {
+            return { id: risk.id, title: risk.title, due: risk.next_review_due, owner: risk.owner };
+          }),
+        evidence_warnings: risks
+          .filter(function (risk) { return risk.evidence_coverage !== "multi-source"; })
+          .map(function (risk) {
+            return risk.id + ": " + displayEvidenceCoverage(risk.evidence_coverage) + " before board reliance.";
+          })
+      },
+      risk_motion: riskMotion,
+      treatment_assurance: {
+        action_runway: {
+          thirty: risks.map(function (risk) {
+            return { id: risk.id, owner: risk.owner, action: (risk.mitigation_actions || [])[0] || "Confirm treatment owner and first action." };
+          }),
+          sixty: risks.map(function (risk) {
+            return { id: risk.id, owner: risk.owner, action: (risk.mitigation_actions || [])[1] || "Test the highest-impact control and record evidence." };
+          }),
+          ninety: risks.map(function (risk) {
+            return { id: risk.id, owner: risk.owner, action: "Re-score residual exposure and close or escalate evidence gaps." };
+          })
+        },
+        owner_workload: risksByOwner,
+        control_gap_total: risks.reduce(function (total, risk) { return total + (risk.control_gaps || []).length; }, 0),
+        control_gap_rows: risks.map(function (risk) {
+          return { id: risk.id, title: risk.title, controls: (risk.existing_controls || []).length, gaps: (risk.control_gaps || []).length, effectiveness: risk.control_effectiveness };
+        })
+      },
+      evidence_intelligence: {
+        coverage_mix: objectCountsToRows(countBy(risks, function (risk) { return displayEvidenceCoverage(risk.evidence_coverage); })),
+        confidence_counts: objectCountsToRows(countBy(risks, function (risk) { return risk.confidence; })),
+        coverage_rows: risks.map(function (risk) {
+          return { id: risk.id, title: risk.title, coverage: displayEvidenceCoverage(risk.evidence_coverage), evidence_ids: risk.evidence_ids.slice(), confidence: risk.confidence };
+        }),
+        open_requests: risks.map(function (risk) {
+          return {
+            id: risk.id,
+            title: risk.title,
+            requests: ((risk.supporting_analysis || {}).open_evidence_requests || []).slice(0, 3)
+          };
+        }),
+        source_counts: {
+          real_evidence: countRealEvidenceItems(assessment.evidence_pack || []),
+          fallback_evidence: (assessment.evidence_pack || []).length - countRealEvidenceItems(assessment.evidence_pack || [])
+        }
+      },
+      kri_watchlist: risks.map(function (risk) {
+        return {
+          id: risk.id,
+          title: risk.title,
+          kri: risk.kri,
+          early_warning: risk.early_warning,
+          velocity: risk.risk_velocity,
+          escalation: risk.residual_score >= 10 ? "Board escalation trigger" : "Management watch trigger"
+        };
+      }),
+      dependency_scenarios: {
+        dependencies: dependencies,
+        scenario_cards: risks.map(function (risk, index) {
+          return {
+            id: risk.id,
+            title: risk.title,
+            dependency: dependencies[index % dependencies.length],
+            first_failure_signal: risk.early_warning,
+            red_team: risk.red_team_challenge,
+            postmortem: risk.postmortem_scenario
+          };
+        })
+      }
     };
   }
 
@@ -1623,6 +1774,118 @@
       .join("");
   }
 
+  function widthClassForPercent(value) {
+    var bounded = Math.max(10, Math.min(100, Math.round((Number(value) || 0) / 10) * 10));
+    return "w-" + bounded;
+  }
+
+  function renderDecisionStrip(visuals) {
+    var summary = visuals.decision_summary || { principal_risks: [], appetite_breaches: [], decisions_needed: [], reviews_due: [], evidence_warnings: [], total_risks: 0 };
+    return (
+      '<div class="decision-strip">' +
+      '<div class="decision-metrics">' +
+      '<span><strong>' + escapeHtml(String(summary.total_risks)) + '</strong>Total risks</span>' +
+      '<span><strong>' + escapeHtml(String(summary.principal_risks.length)) + '</strong>Principal risks</span>' +
+      '<span><strong>' + escapeHtml(String(summary.appetite_breaches.length)) + '</strong>Appetite breaches</span>' +
+      '<span><strong>' + escapeHtml(String(summary.evidence_warnings.length)) + '</strong>Evidence warnings</span>' +
+      '</div><div class="decision-columns"><section><h5>Decisions Needed</h5><ul>' +
+      renderInlineList(summary.decisions_needed.slice(0, 5)) +
+      '</ul></section><section><h5>Next Reviews</h5><ul>' +
+      (summary.reviews_due || []).map(function (item) {
+        return '<li><strong>' + escapeHtml(item.id) + '</strong> ' + escapeHtml(item.due) + ' / ' + escapeHtml(item.owner) + '</li>';
+      }).join("") +
+      "</ul></section></div></div>"
+    );
+  }
+
+  function renderRiskMotion(rows) {
+    return (
+      '<div class="scroll-box"><table class="motion-table"><thead><tr><th>Risk</th><th>Inherent</th><th>Residual</th><th>Reduction</th><th>Velocity</th><th>Appetite</th></tr></thead><tbody>' +
+      (rows || []).map(function (item) {
+        return (
+          '<tr><td><strong>' + escapeHtml(item.id) + '</strong> ' + escapeHtml(item.title) + '</td><td class="score">' +
+          escapeHtml(String(item.inherent_score)) +
+          '</td><td class="score">' +
+          escapeHtml(String(item.residual_score)) +
+          '</td><td><div class="bar-row compact"><span>' +
+          escapeHtml(String(item.reduction_percent)) +
+          '%</span><div class="bar-track"><div class="bar-fill ' +
+          escapeHtml(widthClassForPercent(item.reduction_percent)) +
+          '"></div></div></div></td><td>' +
+          escapeHtml(item.velocity) +
+          '</td><td><span class="status-pill ' +
+          (item.appetite_status === "Escalate" ? "alert" : item.appetite_status === "Watch" ? "watch" : "ok") +
+          '">' +
+          escapeHtml(item.appetite_status) +
+          "</span></td></tr>"
+        );
+      }).join("") +
+      "</tbody></table></div>"
+    );
+  }
+
+  function renderTreatmentAssurance(treatment) {
+    var data = treatment || { action_runway: { thirty: [], sixty: [], ninety: [] }, owner_workload: [], control_gap_rows: [], control_gap_total: 0 };
+    return (
+      '<div class="treatment-board"><div class="runway-grid">' +
+      ['thirty', 'sixty', 'ninety'].map(function (key) {
+        var label = key === "thirty" ? "30 Days" : key === "sixty" ? "60 Days" : "90 Days";
+        return '<section><h5>' + label + '</h5><ul>' + (data.action_runway[key] || []).slice(0, 4).map(function (item) {
+          return '<li><strong>' + escapeHtml(item.id) + '</strong> ' + escapeHtml(item.action) + '</li>';
+        }).join("") + '</ul></section>';
+      }).join("") +
+      '</div><div class="assurance-grid"><section><h5>Owner Workload</h5>' +
+      renderBarList(data.owner_workload || [], "value", "label") +
+      '</section><section><h5>Controls / Gaps</h5><ul>' +
+      (data.control_gap_rows || []).map(function (item) {
+        return '<li><strong>' + escapeHtml(item.id) + '</strong> ' + escapeHtml(String(item.controls)) + ' controls / ' + escapeHtml(String(item.gaps)) + ' gaps / ' + escapeHtml(item.effectiveness) + '</li>';
+      }).join("") +
+      "</ul></section></div></div>"
+    );
+  }
+
+  function renderEvidenceIntelligence(evidence) {
+    var data = evidence || { coverage_mix: [], confidence_counts: [], coverage_rows: [], open_requests: [], source_counts: { real_evidence: 0, fallback_evidence: 0 } };
+    return (
+      '<div class="evidence-intelligence"><div class="metric-pair"><span><strong>' +
+      escapeHtml(String(data.source_counts.real_evidence)) +
+      '</strong> source-bound items</span><span><strong>' +
+      escapeHtml(String(data.source_counts.fallback_evidence)) +
+      '</strong> fallback items</span></div><div class="assurance-grid"><section><h5>Coverage Mix</h5>' +
+      renderBarList(data.coverage_mix || [], "value", "label") +
+      '<h5>Confidence</h5>' +
+      renderBarList(data.confidence_counts || [], "value", "label") +
+      '</section><section><h5>Open Evidence Requests</h5><ul>' +
+      (data.open_requests || []).map(function (item) {
+        return '<li><strong>' + escapeHtml(item.id) + '</strong> ' + escapeHtml((item.requests || [])[0] || "Confirm evidence before board reliance.") + '</li>';
+      }).join("") +
+      "</ul></section></div></div>"
+    );
+  }
+
+  function renderKriWatchlist(rows) {
+    return (
+      '<div class="kri-watchlist">' +
+      (rows || []).map(function (item) {
+        return '<article><h5>' + escapeHtml(item.id + " " + item.title) + '</h5><p><strong>KRI:</strong> ' + escapeHtml(item.kri) + '</p><p><strong>Early warning:</strong> ' + escapeHtml(item.early_warning) + '</p><p class="muted">' + escapeHtml(item.velocity + " / " + item.escalation) + '</p></article>';
+      }).join("") +
+      "</div>"
+    );
+  }
+
+  function renderDependencyScenarios(data) {
+    var scenarios = data || { dependencies: [], scenario_cards: [] };
+    return (
+      '<div class="dependency-scenarios"><div class="dependency-list"><h5>Critical Dependencies</h5><ul>' +
+      (scenarios.dependencies || []).map(function (item) { return '<li>' + escapeHtml(item) + '</li>'; }).join("") +
+      '</ul></div><div class="scenario-grid">' +
+      (scenarios.scenario_cards || []).map(function (item) {
+        return '<article><h5>' + escapeHtml(item.id + " " + item.title) + '</h5><p><strong>Dependency:</strong> ' + escapeHtml(item.dependency) + '</p><p><strong>First signal:</strong> ' + escapeHtml(item.first_failure_signal) + '</p><p><strong>Challenge:</strong> ' + escapeHtml(item.red_team) + '</p><p class="muted">' + escapeHtml(item.postmortem) + '</p></article>';
+      }).join("") +
+      "</div></div>"
+    );
+  }
+
   function renderVisualDashboard(assessment) {
     var visuals = assessment.visuals || buildVisualSummary(assessment);
     var controlItems = Object.keys(visuals.control_effectiveness || {}).map(function (key) {
@@ -1634,6 +1897,24 @@
     });
     return (
       '<div class="visual-grid">' +
+      '<section class="visual-card wide"><h4>Board Decision Strip</h4>' +
+      renderDecisionStrip(visuals) +
+      "</section>" +
+      '<section class="visual-card wide"><h4>Risk Motion</h4>' +
+      renderRiskMotion(visuals.risk_motion || []) +
+      "</section>" +
+      '<section class="visual-card wide"><h4>Treatment and Assurance</h4>' +
+      renderTreatmentAssurance(visuals.treatment_assurance) +
+      "</section>" +
+      '<section class="visual-card wide"><h4>Evidence Intelligence</h4>' +
+      renderEvidenceIntelligence(visuals.evidence_intelligence) +
+      "</section>" +
+      '<section class="visual-card wide"><h4>KRI Watchlist</h4>' +
+      renderKriWatchlist(visuals.kri_watchlist || []) +
+      "</section>" +
+      '<section class="visual-card wide"><h4>Dependency and Scenario Stress</h4>' +
+      renderDependencyScenarios(visuals.dependency_scenarios) +
+      "</section>" +
       '<section class="visual-card wide"><h4>Top Residual Risks</h4>' +
       renderBarList(top, "value", "label") +
       "</section>" +

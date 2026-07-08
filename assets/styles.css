@@ -372,6 +372,11 @@ button.ghost {
   overflow-wrap: anywhere;
 }
 
+.bar-row.compact {
+  grid-template-columns: 44px minmax(96px, 1fr);
+  margin-bottom: 0;
+}
+
 .bar-track {
   height: 12px;
   border: 1px solid #cbd5df;
@@ -397,6 +402,136 @@ button.ghost {
 .challenge-list {
   display: grid;
   gap: 10px;
+}
+
+.decision-strip,
+.treatment-board,
+.evidence-intelligence,
+.dependency-scenarios {
+  display: grid;
+  gap: 14px;
+}
+
+.decision-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.decision-metrics span {
+  display: grid;
+  gap: 3px;
+  min-height: 64px;
+  padding: 10px;
+  border-top: 3px solid var(--green);
+  background: #fff;
+}
+
+.decision-metrics strong {
+  color: var(--ink);
+  font-size: 24px;
+}
+
+.decision-columns,
+.assurance-grid,
+.runway-grid,
+.scenario-grid,
+.kri-watchlist {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.runway-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.decision-columns section,
+.assurance-grid section,
+.runway-grid section,
+.dependency-list {
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  min-width: 0;
+}
+
+.visual-card h5 {
+  margin: 0 0 8px;
+  color: #34404c;
+  font-size: 12px;
+}
+
+.visual-card ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.visual-card li {
+  margin-bottom: 5px;
+  line-height: 1.35;
+}
+
+.motion-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.motion-table th,
+.motion-table td {
+  border: 1px solid var(--line);
+  padding: 8px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.motion-table th {
+  background: #25313d;
+  color: #fff;
+  white-space: nowrap;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 4px 8px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.status-pill.alert {
+  color: var(--red);
+  background: #fff4f2;
+}
+
+.status-pill.watch {
+  color: var(--amber);
+  background: #fff8e6;
+}
+
+.status-pill.ok {
+  color: var(--green);
+  background: #f0faf4;
+}
+
+.kri-watchlist article,
+.scenario-grid article {
+  padding: 10px 0 10px 12px;
+  border-left: 3px solid var(--blue);
+  min-width: 0;
+}
+
+.scenario-grid article {
+  border-left-color: var(--amber);
+}
+
+.kri-watchlist p,
+.scenario-grid p {
+  margin-top: 6px;
+  line-height: 1.4;
 }
 
 .challenge-list article {
@@ -621,6 +756,12 @@ pre {
 
   .visual-grid,
   .quality-grid,
+  .decision-metrics,
+  .decision-columns,
+  .assurance-grid,
+  .runway-grid,
+  .scenario-grid,
+  .kri-watchlist,
   .metric-pair {
     grid-template-columns: 1fr;
   }
