@@ -56,6 +56,28 @@ class RiskWorkbenchWebTests(unittest.TestCase):
         self.assertIn("max-height", css)
         self.assertIn("position: sticky", css)
 
+    def test_input_panel_keeps_advanced_evidence_progressive(self):
+        html = (ROOT / "index.html").read_text(encoding="utf-8")
+        css = (ROOT / "assets/styles.css").read_text(encoding="utf-8")
+
+        self.assertIn('class="workflow-strip"', html)
+        self.assertIn("Plan", html)
+        self.assertIn("Do", html)
+        self.assertIn("Check", html)
+        self.assertIn("Review", html)
+        self.assertIn("Optional management context", html)
+        self.assertIn("Evidence file workspace", html)
+        self.assertIn('id="evidenceWorkspace"', html)
+        self.assertIn('id="emptyOutputState"', html)
+        self.assertIn('id="generatedOutputs" hidden', html)
+        self.assertLess(html.index('id="generate"'), html.index('id="evidenceWorkspace"'))
+        self.assertLess(html.index('id="sample"'), html.index('id="evidenceWorkspace"'))
+        self.assertLess(html.index("Optional management context"), html.index('id="fileInput"'))
+        self.assertIn(".progressive-panel summary", css)
+        self.assertIn(".empty-state", css)
+        self.assertIn(".workflow-strip", css)
+        self.assertIn("20260708-simple-flow", html)
+
     def test_generator_builds_cause_event_consequence_register_and_quality_fields(self):
         script = textwrap.dedent(
             """

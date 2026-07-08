@@ -8,7 +8,7 @@
       content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https://api.github.com; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none'"
     >
     <title>Risk Workbench</title>
-    <link rel="stylesheet" href="assets/styles.css?v=20260708-risk-cockpit">
+    <link rel="stylesheet" href="assets/styles.css?v=20260708-simple-flow">
   </head>
   <body>
     <header class="app-header">
@@ -27,8 +27,15 @@
       <section class="input-panel" aria-labelledby="inputs-title">
         <div class="section-heading">
           <p class="eyebrow">Inputs</p>
-          <h2 id="inputs-title">Company, LNG project evidence, and files</h2>
+          <h2 id="inputs-title">Company and evidence</h2>
         </div>
+
+        <ol class="workflow-strip" aria-label="Assessment workflow">
+          <li><strong>Plan</strong><span>Company</span></li>
+          <li><strong>Do</strong><span>Generate</span></li>
+          <li><strong>Check</strong><span>Gate</span></li>
+          <li><strong>Review</strong><span>Board pack</span></li>
+        </ol>
 
         <div class="grid two">
           <label>
@@ -47,73 +54,85 @@
 
         <label>
           Evidence notes
-          <textarea id="evidenceText" rows="8" placeholder="Add one LNG/project evidence note per line. Include schedule, funding, permits, commissioning, cyber/OT, or safety evidence for a passing gate."></textarea>
+          <textarea id="evidenceText" rows="6" placeholder="Add one LNG/project evidence note per line. Include schedule, funding, permits, commissioning, cyber/OT, or safety evidence for a passing gate."></textarea>
         </label>
-
-        <div class="section-heading compact">
-          <p class="eyebrow">Four questions research cannot answer</p>
-        </div>
-        <div class="grid two">
-          <label>
-            Current objectives
-            <textarea id="objectives" rows="3" placeholder="Top business objectives this year"></textarea>
-          </label>
-          <label>
-            Incidents or near misses
-            <textarea id="incidents" rows="3" placeholder="Known incidents in the last 24 months"></textarea>
-          </label>
-          <label>
-            Risk appetite
-            <textarea id="riskAppetite" rows="3" placeholder="Low appetite for safety and compliance risk..."></textarea>
-          </label>
-          <label>
-            Critical dependencies
-            <textarea id="dependencies" rows="3" placeholder="Key contractors, suppliers, systems, permits, or counterparties"></textarea>
-          </label>
-        </div>
-
-        <div class="import-panel">
-          <div>
-            <p class="eyebrow">Local files</p>
-            <label class="file-box">
-              Add text files
-              <input id="fileInput" type="file" multiple accept=".txt,.md,.csv,.json,.html,.htm,.log,.yaml,.yml,.xml">
-            </label>
-          </div>
-          <div>
-            <p class="eyebrow">GitHub files</p>
-            <label>
-              GitHub blob or raw URL
-              <input id="githubUrl" type="url" autocomplete="off" placeholder="https://github.com/owner/repo/blob/main/path/file.md">
-            </label>
-            <button id="parseGithubUrl" type="button" class="secondary">Parse URL</button>
-            <div class="grid two">
-              <label>Owner<input id="githubOwner" type="text" autocomplete="off"></label>
-              <label>Repo<input id="githubRepo" type="text" autocomplete="off"></label>
-              <label>Ref<input id="githubRef" type="text" autocomplete="off" placeholder="main"></label>
-              <label>Path<input id="githubPath" type="text" autocomplete="off" placeholder="docs/source.md"></label>
-            </div>
-            <label>
-              Optional token for private repos
-              <input id="githubToken" type="password" autocomplete="off" placeholder="Fine-grained token, kept only for this fetch">
-            </label>
-            <div class="button-row">
-              <button id="importGithub" type="button" class="secondary">Import GitHub File</button>
-              <button id="clearImports" type="button" class="ghost">Clear Imports</button>
-            </div>
-            <p id="importStatus" class="muted">GitHub import calls only `api.github.com` after you click import.</p>
-          </div>
-        </div>
-
-        <div class="imported">
-          <p class="eyebrow">Imported evidence files</p>
-          <ul id="importedFiles"></ul>
-        </div>
 
         <div class="button-row sticky-actions">
           <button id="generate" type="button">Generate Risk Register</button>
           <button id="sample" type="button" class="secondary">Load NextDecade Sample</button>
         </div>
+
+        <details class="progressive-panel">
+          <summary>
+            <span>
+              <strong>Optional management context</strong>
+              <small>Objectives, incidents, appetite, dependencies</small>
+            </span>
+          </summary>
+          <div class="grid two progressive-body">
+            <label>
+              Current objectives
+              <textarea id="objectives" rows="3" placeholder="Top business objectives this year"></textarea>
+            </label>
+            <label>
+              Incidents or near misses
+              <textarea id="incidents" rows="3" placeholder="Known incidents in the last 24 months"></textarea>
+            </label>
+            <label>
+              Risk appetite
+              <textarea id="riskAppetite" rows="3" placeholder="Low appetite for safety and compliance risk..."></textarea>
+            </label>
+            <label>
+              Critical dependencies
+              <textarea id="dependencies" rows="3" placeholder="Key contractors, suppliers, systems, permits, or counterparties"></textarea>
+            </label>
+          </div>
+        </details>
+
+        <details id="evidenceWorkspace" class="progressive-panel">
+          <summary>
+            <span>
+              <strong>Evidence file workspace</strong>
+              <small>Local files and GitHub imports</small>
+            </span>
+          </summary>
+          <div class="import-panel progressive-body">
+            <div>
+              <p class="eyebrow">Local files</p>
+              <label class="file-box">
+                Add text files
+                <input id="fileInput" type="file" multiple accept=".txt,.md,.csv,.json,.html,.htm,.log,.yaml,.yml,.xml">
+              </label>
+            </div>
+            <div>
+              <p class="eyebrow">GitHub files</p>
+              <label>
+                GitHub blob or raw URL
+                <input id="githubUrl" type="url" autocomplete="off" placeholder="https://github.com/owner/repo/blob/main/path/file.md">
+              </label>
+              <button id="parseGithubUrl" type="button" class="secondary">Parse URL</button>
+              <div class="grid two">
+                <label>Owner<input id="githubOwner" type="text" autocomplete="off"></label>
+                <label>Repo<input id="githubRepo" type="text" autocomplete="off"></label>
+                <label>Ref<input id="githubRef" type="text" autocomplete="off" placeholder="main"></label>
+                <label>Path<input id="githubPath" type="text" autocomplete="off" placeholder="docs/source.md"></label>
+              </div>
+              <label>
+                Optional token for private repos
+                <input id="githubToken" type="password" autocomplete="off" placeholder="Fine-grained token, kept only for this fetch">
+              </label>
+              <div class="button-row">
+                <button id="importGithub" type="button" class="secondary">Import GitHub File</button>
+                <button id="clearImports" type="button" class="ghost">Clear Imports</button>
+              </div>
+              <p id="importStatus" class="muted">GitHub import calls only `api.github.com` after you click import.</p>
+            </div>
+          </div>
+          <div class="imported">
+            <p class="eyebrow">Imported evidence files</p>
+            <ul id="importedFiles"></ul>
+          </div>
+        </details>
       </section>
 
       <section class="output-panel" aria-labelledby="outputs-title">
@@ -122,110 +141,117 @@
           <h2 id="outputs-title">Register, heat map, and board pack</h2>
         </div>
 
-        <nav class="output-nav" aria-label="Output sections">
-          <a href="#reviewGateBlock">Gate</a>
-          <a href="#riskRegisterBlock">Register</a>
-          <a href="#boardReportBlock">Board</a>
-          <a href="#detailedAnalysisBlock">Detailed</a>
-          <a href="#downloadPanel">Downloads</a>
-        </nav>
-
         <div class="notice">
           <strong>Privacy mode:</strong> generation runs in this browser. No AI calls, telemetry, or remote logging are used. GitHub import is the only external request path and only runs when you click import.
         </div>
 
-        <p id="downloadStatus" class="muted">Downloads appear after the review gate passes.</p>
-        <section id="downloadPanel" class="download-panel" hidden>
-          <h3>Downloads</h3>
-          <div class="download-grid">
-            <section>
-              <h4>Reports</h4>
-              <div class="button-row">
-                <button id="downloadBoard" type="button" class="secondary">board-report.md</button>
-                <button id="downloadDetailed" type="button" class="secondary">detailed-analysis.md</button>
-                <button id="downloadStandards" type="button" class="secondary">standards-annex.md</button>
-              </div>
-            </section>
-            <section>
-              <h4>Data</h4>
-              <div class="button-row">
-                <button id="downloadJson" type="button" class="secondary">assessment.json</button>
-                <button id="downloadCsv" type="button" class="secondary">risk-register.csv</button>
-                <button id="downloadRegisterJson" type="button" class="secondary">risk-register.json</button>
-                <button id="downloadEvidenceJson" type="button" class="secondary">evidence-pack.json</button>
-              </div>
-            </section>
-            <section>
-              <h4>Supporting</h4>
-              <div class="button-row">
-                <button id="downloadHeatMap" type="button" class="secondary">heat-map.html</button>
-                <button id="downloadPrompts" type="button" class="secondary">prompt-pack.md</button>
-              </div>
-            </section>
-          </div>
-        </section>
+        <div id="emptyOutputState" class="empty-state">
+          <h3>Ready for assessment</h3>
+          <p>Generated gates, dashboard views, reports, and downloads appear here after the run.</p>
+        </div>
 
-        <section id="reviewGateBlock" class="output-block">
-          <h3>Review Gate</h3>
-          <div id="gateDetails">
-            <p>Run an assessment to see gate findings.</p>
-          </div>
-        </section>
+        <div id="generatedOutputs" hidden>
+          <nav class="output-nav" aria-label="Output sections">
+            <a href="#reviewGateBlock">Gate</a>
+            <a href="#riskRegisterBlock">Register</a>
+            <a href="#boardReportBlock">Board</a>
+            <a href="#detailedAnalysisBlock">Detailed</a>
+            <a href="#downloadPanel">Downloads</a>
+          </nav>
 
-        <section id="qualityChallengeBlock" class="output-block">
-          <h3>Quality Challenge</h3>
-          <div id="qualityReview">
-            <p>Run an assessment to see evidence, red-team, and postmortem challenges.</p>
-          </div>
-        </section>
+          <p id="downloadStatus" class="muted">Downloads appear after the review gate passes.</p>
+          <section id="downloadPanel" class="download-panel" hidden>
+            <h3>Downloads</h3>
+            <div class="download-grid">
+              <section>
+                <h4>Reports</h4>
+                <div class="button-row">
+                  <button id="downloadBoard" type="button" class="secondary">board-report.md</button>
+                  <button id="downloadDetailed" type="button" class="secondary">detailed-analysis.md</button>
+                  <button id="downloadStandards" type="button" class="secondary">standards-annex.md</button>
+                </div>
+              </section>
+              <section>
+                <h4>Data</h4>
+                <div class="button-row">
+                  <button id="downloadJson" type="button" class="secondary">assessment.json</button>
+                  <button id="downloadCsv" type="button" class="secondary">risk-register.csv</button>
+                  <button id="downloadRegisterJson" type="button" class="secondary">risk-register.json</button>
+                  <button id="downloadEvidenceJson" type="button" class="secondary">evidence-pack.json</button>
+                </div>
+              </section>
+              <section>
+                <h4>Supporting</h4>
+                <div class="button-row">
+                  <button id="downloadHeatMap" type="button" class="secondary">heat-map.html</button>
+                  <button id="downloadPrompts" type="button" class="secondary">prompt-pack.md</button>
+                </div>
+              </section>
+            </div>
+          </section>
 
-        <section id="evidenceBlock" class="output-block">
-          <h3>Evidence</h3>
-          <ul id="evidenceList" class="evidence-list"></ul>
-        </section>
+          <section id="reviewGateBlock" class="output-block">
+            <h3>Review Gate</h3>
+            <div id="gateDetails">
+              <p>Run an assessment to see gate findings.</p>
+            </div>
+          </section>
 
-        <section id="visualDashboardBlock" class="output-block">
-          <h3>Visual Dashboard</h3>
-          <div id="heatMap"></div>
-        </section>
+          <section id="qualityChallengeBlock" class="output-block">
+            <h3>Quality Challenge</h3>
+            <div id="qualityReview">
+              <p>Run an assessment to see evidence, red-team, and postmortem challenges.</p>
+            </div>
+          </section>
 
-        <section id="riskRegisterBlock" class="output-block">
-          <h3>Risk Register</h3>
-          <div id="riskRegister" class="scroll-box"></div>
-        </section>
+          <section id="evidenceBlock" class="output-block">
+            <h3>Evidence</h3>
+            <ul id="evidenceList" class="evidence-list"></ul>
+          </section>
 
-        <section id="boardReportBlock" class="output-block report-block">
-          <details class="report-shell">
-            <summary>
-              <span>Board Report</span>
-              <span id="boardReportMeta" class="report-meta">Not generated</span>
-            </summary>
-            <pre id="boardReport"></pre>
-          </details>
-        </section>
+          <section id="visualDashboardBlock" class="output-block">
+            <h3>Visual Dashboard</h3>
+            <div id="heatMap"></div>
+          </section>
 
-        <section id="detailedAnalysisBlock" class="output-block report-block">
-          <details class="report-shell">
-            <summary>
-              <span>Detailed Analysis</span>
-              <span id="detailedAnalysisMeta" class="report-meta">Not generated</span>
-            </summary>
-            <pre id="detailedAnalysis"></pre>
-          </details>
-        </section>
+          <section id="riskRegisterBlock" class="output-block">
+            <h3>Risk Register</h3>
+            <div id="riskRegister" class="scroll-box"></div>
+          </section>
 
-        <section id="standardsAnnexBlock" class="output-block report-block">
-          <details class="report-shell">
-            <summary>
-              <span>Standards Annex</span>
-              <span id="standardsAnnexMeta" class="report-meta">Not generated</span>
-            </summary>
-            <pre id="standardsAnnex"></pre>
-          </details>
-        </section>
+          <section id="boardReportBlock" class="output-block report-block">
+            <details class="report-shell">
+              <summary>
+                <span>Board Report</span>
+                <span id="boardReportMeta" class="report-meta">Not generated</span>
+              </summary>
+              <pre id="boardReport"></pre>
+            </details>
+          </section>
+
+          <section id="detailedAnalysisBlock" class="output-block report-block">
+            <details class="report-shell">
+              <summary>
+                <span>Detailed Analysis</span>
+                <span id="detailedAnalysisMeta" class="report-meta">Not generated</span>
+              </summary>
+              <pre id="detailedAnalysis"></pre>
+            </details>
+          </section>
+
+          <section id="standardsAnnexBlock" class="output-block report-block">
+            <details class="report-shell">
+              <summary>
+                <span>Standards Annex</span>
+                <span id="standardsAnnexMeta" class="report-meta">Not generated</span>
+              </summary>
+              <pre id="standardsAnnex"></pre>
+            </details>
+          </section>
+        </div>
       </section>
     </main>
 
-    <script src="assets/app.js?v=20260708-risk-cockpit"></script>
+    <script src="assets/app.js?v=20260708-simple-flow"></script>
   </body>
 </html>

@@ -2002,8 +2002,20 @@
     };
   }
 
+  function setGeneratedOutputVisible(isVisible) {
+    var generatedOutputs = global.document.getElementById("generatedOutputs");
+    if (generatedOutputs) {
+      generatedOutputs.hidden = !isVisible;
+    }
+    var emptyOutputState = global.document.getElementById("emptyOutputState");
+    if (emptyOutputState) {
+      emptyOutputState.hidden = isVisible;
+    }
+  }
+
   function renderAssessment(assessment) {
     state.assessment = assessment;
+    setGeneratedOutputVisible(true);
     var gate = global.document.getElementById("gate");
     gate.textContent = assessment.review_gate.verdict.toUpperCase();
     gate.className = "status-chip " + (assessment.review_gate.verdict === "pass" ? "pass" : "revise");
@@ -2064,6 +2076,7 @@
     if (!global.document) {
       return;
     }
+    setGeneratedOutputVisible(false);
     var gate = global.document.getElementById("gate");
     if (gate) {
       gate.textContent = "STALE";
