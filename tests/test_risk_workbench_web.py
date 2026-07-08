@@ -1,0 +1,409 @@
+import json
+import shutil
+import subprocess
+import textwrap
+import unittest
+from pathlib import Path
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def run_node(script: str) -> dict:
+    result = subprocess.run(
+        ["node", "-e", script],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=True,
+    )
+    return json.loads(result.stdout)
+
+
+@unittest.skipUnless(shutil.which("node"), "node required for browser-engine tests")
+class RiskWorkbenchWebTests(unittest.TestCase):
+    def test_static_app_files_exist_and_are_wired_without_external_runtime(self):
+        index = ROOT / "index.html"
+        app = ROOT / "assets/app.js"
+        styles = ROOT / "assets/styles.css"
+
+        self.assertTrue(index.exists(), "index.html should be the GitHub Pages entrypoint")
+        self.assertTrue(app.exists(), "assets/app.js should hold the browser app")
+        self.assertTrue(styles.exists(), "assets/styles.css should hold the app styles")
+
+        html = index.read_text(encoding="utf-8")
+        self.assertIn("assets/app.js", html)
+        self.assertIn("assets/styles.css", html)
+        self.assertIn("Risk Workbench", html)
+        self.assertIn("github", html.lower())
+        self.assertNotIn("https://cdn", html.lower())
+        self.assertNotIn("analytics", html.lower())
+
+    def test_generator_builds_cause_event_consequence_register_and_quality_fields(self):
+        script = textwrap.dedent(
+            """
+            const fs = require('fs');
+            const vm = require('vm');
+            const assert = require('assert');
+            const code = fs.readFileSync('assets/app.js', 'utf8');
+            const sandbox = { window: { URL }, console, document: undefined, URL };
+            sandbox.globalThis = sandbox.window;
+            vm.runInNewContext(code, sandbox, { filename: 'app.js' });
+            const WB = sandbox.window.RiskWorkbench;
+
+            const assessment = WB.buildAssessment({
+              company: 'NextDecade LNG, LLC',
+              country: 'United States',
+              website: 'https://www.next-decade.com',
+              evidenceText: [
+                'Rio Grande LNG construction schedule and critical path float are reviewed.',
+                'Funding liquidity headroom and contingency draw are tracked.',
+                'Permit obligations are mapped to regulators and field records.',
+                'Commissioning test failures and punch-list aging are monitored.',
+                'OT recovery drills and cyber access reviews are tracked.',
+                'Contractor safety near misses and recordable incident rates are reviewed.',
+                'Bechtel EPC delivery is a critical dependency.',
+                'Feed gas delivery and LNG offtake contracts shape the operating model.'
+              ].join('\\n'),
+              importedEvidence: [{ name: 'github:README.md', text: 'Cyber recovery drills and contractor safety leading indicators are tracked monthly.' }],
+              answers: {
+                objectives: 'Train 1 first gas and safe commissioning',
+                risk_appetite: 'Low appetite for safety and compliance risk; moderate appetite for schedule risk.',
+                dependencies: 'Bechtel EPC, feed gas, offtakers, regulators'
+              }
+            });
+
+            assert.equal(assessment.review_gate.verdict, 'pass');
+            assert.ok(assessment.risk_register.length >= 6);
+            assert.ok(assessment.quality_review);
+            assert.ok(assessment.visuals);
+
+            assessment.risk_register.forEach((risk) => {
+              assert.ok(risk.cause, `${risk.id} should state a cause`);
+              assert.ok(risk.risk_event, `${risk.id} should state an event`);
+              assert.ok(risk.consequence, `${risk.id} should state a consequence`);
+              assert.ok(Array.isArray(risk.existing_controls) && risk.existing_controls.length >= 2, `${risk.id} should list controls`);
+              assert.ok(Array.isArray(risk.control_gaps) && risk.control_gaps.length >= 1, `${risk.id} should list gaps`);
+              assert.ok(Array.isArray(risk.mitigation_actions) && risk.mitigation_actions.length >= 2, `${risk.id} should list mitigations`);
+              assert.ok(risk.early_warning, `${risk.id} should have early warning`);
+              assert.ok(risk.risk_velocity, `${risk.id} should have velocity`);
+              assert.ok(risk.appetite_alignment, `${risk.id} should have appetite alignment`);
+              assert.ok(risk.red_team_challenge, `${risk.id} should have red-team challenge`);
+              assert.ok(risk.postmortem_scenario, `${risk.id} should have postmortem scenario`);
+              assert.ok(risk.residual_score <= risk.inherent_score, `${risk.id} residual must not exceed inherent`);
+            });
+
+            console.log(JSON.stringify({
+              verdict: assessment.review_gate.verdict,
+              risks: assessment.risk_register.length,
+              reviewFindings: assessment.quality_review.findings.length,
+              visualCount: Object.keys(assessment.visuals).length
+            }));
+            """
+        )
+
+        result = run_node(script)
+        self.assertEqual(result["verdict"], "pass")
+        self.assertGreaterEqual(result["risks"], 6)
+        self.assertGreaterEqual(result["reviewFindings"], 1)
+        self.assertGreaterEqual(result["visualCount"], 4)
+
+    def test_visual_renderers_include_inherent_residual_and_challenge_views(self):
+        script = textwrap.dedent(
+            """
+            const fs = require('fs');
+            const vm = require('vm');
+            const assert = require('assert');
+            const code = fs.readFileSync('assets/app.js', 'utf8');
+            const sandbox = { window: { URL }, console, document: undefined, URL };
+            sandbox.globalThis = sandbox.window;
+            vm.runInNewContext(code, sandbox, { filename: 'app.js' });
+            const WB = sandbox.window.RiskWorkbench;
+
+            const assessment = WB.buildAssessment({
+              company: 'NextDecade LNG, LLC',
+              evidenceText: 'Rio Grande LNG is in construction and commissioning.\\nBechtel EPC delivery is a dependency.',
+              importedEvidence: [],
+              answers: { objectives: 'Safe commissioning', risk_appetite: 'Low appetite for safety and compliance.' }
+            });
+
+            const dashboard = WB.renderVisualDashboard(assessment);
+            assert.ok(dashboard.includes('Inherent Heat Map'));
+            assert.ok(dashboard.includes('Residual Heat Map'));
+            assert.ok(dashboard.includes('Top Residual Risks'));
+            assert.ok(dashboard.includes('Control Effectiveness'));
+            assert.ok(dashboard.includes('Evidence Coverage'));
+            assert.ok(dashboard.includes('Red Team Challenge'));
+            assert.ok(WB.toHeatMapHtml(assessment).includes('Inherent Heat Map'));
+            assert.ok(WB.toHeatMapHtml(assessment).includes('Residual Heat Map'));
+
+            console.log(JSON.stringify({ visualDashboard: true }));
+            """
+        )
+
+        self.assertEqual(run_node(script), {"visualDashboard": True})
+
+    def test_visual_dashboard_avoids_inline_styles_blocked_by_csp(self):
+        script = textwrap.dedent(
+            """
+            const fs = require('fs');
+            const vm = require('vm');
+            const assert = require('assert');
+            const code = fs.readFileSync('assets/app.js', 'utf8');
+            const sandbox = { window: { URL }, console, document: undefined, URL };
+            sandbox.globalThis = sandbox.window;
+            vm.runInNewContext(code, sandbox, { filename: 'app.js' });
+            const WB = sandbox.window.RiskWorkbench;
+
+            const assessment = WB.buildAssessment({
+              company: 'NextDecade LNG, LLC',
+              evidenceText: [
+                'Rio Grande LNG construction schedule and critical path float are reviewed.',
+                'Funding liquidity headroom and contingency draw are tracked.',
+                'Permit obligations are mapped to regulators and field records.',
+                'Commissioning test failures and punch-list aging are monitored.',
+                'OT recovery drills and cyber access reviews are tracked.',
+                'Contractor safety near misses and recordable incident rates are reviewed.'
+              ].join('\\n'),
+              importedEvidence: [],
+              answers: { risk_appetite: 'Low appetite for safety, compliance, and cyber risk.' }
+            });
+
+            const dashboard = WB.renderVisualDashboard(assessment);
+            assert.ok(!dashboard.includes('style='));
+            assert.ok(dashboard.includes('bar-fill w-'));
+
+            console.log(JSON.stringify({ noInlineStyle: true }));
+            """
+        )
+
+        self.assertEqual(run_node(script), {"noInlineStyle": True})
+
+    def test_download_serializers_include_rich_register_fields_and_sanitize_cells(self):
+        script = textwrap.dedent(
+            """
+            const fs = require('fs');
+            const vm = require('vm');
+            const assert = require('assert');
+            const code = fs.readFileSync('assets/app.js', 'utf8');
+            const sandbox = { window: { URL }, console, document: undefined, URL };
+            sandbox.globalThis = sandbox.window;
+            vm.runInNewContext(code, sandbox, { filename: 'app.js' });
+            const WB = sandbox.window.RiskWorkbench;
+
+            const assessment = WB.buildAssessment({
+              company: '=HYPERLINK("https://bad.example")',
+              evidenceText: '=HYPERLINK("https://bad.example")\\nRio Grande LNG is in construction.',
+              importedEvidence: [],
+              answers: { objectives: '+SUM(A1:A2)' }
+            });
+
+            const csv = WB.toRiskCsv(assessment);
+            assert.ok(csv.includes('Cause'));
+            assert.ok(csv.includes('Risk Event'));
+            assert.ok(csv.includes('Existing Controls'));
+            assert.ok(csv.includes('Control Gaps'));
+            assert.ok(csv.includes('Mitigation Actions'));
+            assert.ok(csv.includes('Red Team Challenge'));
+            assert.ok(csv.includes("'=HYPERLINK"));
+            assert.equal(WB.safeCsvCell('\\t=2+2'), "'\\t=2+2");
+
+            const register = JSON.parse(WB.toRiskRegisterJson(assessment));
+            assert.ok(register.risks[0].cause);
+            assert.ok(register.risks[0].mitigation_actions.length >= 2);
+
+            console.log(JSON.stringify({ csv: true, risks: register.risks.length }));
+            """
+        )
+
+        result = run_node(script)
+        self.assertTrue(result["csv"])
+        self.assertGreaterEqual(result["risks"], 6)
+
+    def test_no_evidence_still_fails_gate_and_challenge_explains_why(self):
+        script = textwrap.dedent(
+            """
+            const fs = require('fs');
+            const vm = require('vm');
+            const assert = require('assert');
+            const code = fs.readFileSync('assets/app.js', 'utf8');
+            const sandbox = { window: { URL }, console, document: undefined, URL };
+            sandbox.globalThis = sandbox.window;
+            vm.runInNewContext(code, sandbox, { filename: 'app.js' });
+            const WB = sandbox.window.RiskWorkbench;
+
+            const noEvidence = WB.buildAssessment({ company: 'No Evidence LLC', evidenceText: '', importedEvidence: [], answers: {} });
+            assert.equal(noEvidence.review_gate.verdict, 'revise');
+            assert.equal(WB.countRealEvidence(noEvidence), 0);
+            assert.ok(noEvidence.quality_review.findings.some((item) => item.toLowerCase().includes('evidence')));
+            assert.ok(noEvidence.risk_register.every((risk) => risk.confidence === 'low'));
+
+            console.log(JSON.stringify({ verdict: noEvidence.review_gate.verdict, realEvidence: WB.countRealEvidence(noEvidence) }));
+            """
+        )
+
+        self.assertEqual(run_node(script), {"verdict": "revise", "realEvidence": 0})
+
+    def test_irrelevant_evidence_does_not_pass_or_bind_to_template_risks(self):
+        script = textwrap.dedent(
+            """
+            const fs = require('fs');
+            const vm = require('vm');
+            const assert = require('assert');
+            const code = fs.readFileSync('assets/app.js', 'utf8');
+            const sandbox = { window: { URL }, console, document: undefined, URL };
+            sandbox.globalThis = sandbox.window;
+            vm.runInNewContext(code, sandbox, { filename: 'app.js' });
+            const WB = sandbox.window.RiskWorkbench;
+
+            const assessment = WB.buildAssessment({
+              company: 'Generic Cafe LLC',
+              evidenceText: 'The cafeteria menu changed from soup to salad on Tuesday.',
+              importedEvidence: [],
+              answers: { objectives: 'Improve lunch satisfaction.' }
+            });
+
+            assert.equal(assessment.review_gate.verdict, 'revise');
+            assert.ok(assessment.review_gate.errors.some((item) => item.includes('source-bound evidence')));
+            assert.ok(assessment.risk_register.every((risk) => risk.evidence_coverage === 'needs-source'));
+            assert.ok(assessment.risk_register.every((risk) => risk.evidence_ids.length === 0));
+
+            console.log(JSON.stringify({ verdict: assessment.review_gate.verdict, unsupported: assessment.risk_register.length }));
+            """
+        )
+
+        result = run_node(script)
+        self.assertEqual(result["verdict"], "revise")
+        self.assertGreaterEqual(result["unsupported"], 6)
+
+    def test_standards_annex_is_conditional_not_a_conformance_claim(self):
+        script = textwrap.dedent(
+            """
+            const fs = require('fs');
+            const vm = require('vm');
+            const assert = require('assert');
+            const code = fs.readFileSync('assets/app.js', 'utf8');
+            const sandbox = { window: { URL }, console, document: undefined, URL };
+            sandbox.globalThis = sandbox.window;
+            vm.runInNewContext(code, sandbox, { filename: 'app.js' });
+            const WB = sandbox.window.RiskWorkbench;
+
+            const assessment = WB.buildAssessment({
+              company: 'NextDecade LNG, LLC',
+              evidenceText: [
+                'Rio Grande LNG construction schedule and critical path float are reviewed.',
+                'Funding liquidity headroom and contingency draw are tracked.',
+                'Permit obligations are mapped to regulators and field records.',
+                'Commissioning test failures and punch-list aging are monitored.',
+                'OT recovery drills and cyber access reviews are tracked.',
+                'Contractor safety near misses and recordable incident rates are reviewed.'
+              ].join('\\n'),
+              importedEvidence: [],
+              answers: { risk_appetite: 'Low appetite for safety, compliance, and cyber risk.' }
+            });
+
+            const markdown = WB.toStandardsMarkdown(assessment);
+            assert.ok(markdown.includes('Draft standards mapping'));
+            assert.ok(markdown.includes('conditional'));
+            assert.ok(!markdown.includes('standards conformance annex'));
+
+            console.log(JSON.stringify({ conditional: true }));
+            """
+        )
+
+        self.assertEqual(run_node(script), {"conditional": True})
+
+    def test_imported_evidence_reports_line_and_truncation_metadata(self):
+        script = textwrap.dedent(
+            """
+            const fs = require('fs');
+            const vm = require('vm');
+            const assert = require('assert');
+            const code = fs.readFileSync('assets/app.js', 'utf8');
+            const sandbox = { window: { URL }, console, document: undefined, URL };
+            sandbox.globalThis = sandbox.window;
+            vm.runInNewContext(code, sandbox, { filename: 'app.js' });
+            const WB = sandbox.window.RiskWorkbench;
+
+            const text = Array.from({ length: 35 }, (_, index) => `Line ${index + 1} commissioning schedule permit safety cyber funding evidence`).join('\\n');
+            const assessment = WB.buildAssessment({
+              company: 'NextDecade LNG, LLC',
+              evidenceText: '',
+              importedEvidence: [{ name: 'local:long.md', text, source_type: 'local-file' }],
+              answers: {}
+            });
+            const importedRows = assessment.evidence_pack.filter((item) => item.source === 'local:long.md');
+            assert.equal(importedRows.length, 30);
+            assert.equal(importedRows[0].line_number, 1);
+            assert.equal(importedRows[29].line_number, 30);
+            assert.equal(importedRows[29].truncated_from_file, true);
+
+            console.log(JSON.stringify({ importedRows: importedRows.length, lastLine: importedRows[29].line_number, truncated: importedRows[29].truncated_from_file }));
+            """
+        )
+
+        self.assertEqual(run_node(script), {"importedRows": 30, "lastLine": 30, "truncated": True})
+
+    def test_github_json_files_and_directory_import_are_bounded(self):
+        script = textwrap.dedent(
+            """
+            const fs = require('fs');
+            const vm = require('vm');
+            const assert = require('assert');
+            const code = fs.readFileSync('assets/app.js', 'utf8');
+            const sandbox = { window: { URL, TextDecoder, atob }, console, document: undefined, URL, TextDecoder, atob };
+            sandbox.globalThis = sandbox.window;
+            vm.runInNewContext(code, sandbox, { filename: 'app.js' });
+            const WB = sandbox.window.RiskWorkbench;
+
+            assert.deepEqual(
+              WB.parseGitHubUrl('https://github.com/acme/risk-repo/blob/main/docs/source.md'),
+              { owner: 'acme', repo: 'risk-repo', ref: 'main', path: 'docs/source.md' }
+            );
+
+            const directoryEntries = Array.from({ length: 30 }, (_, index) => ({
+              type: 'file',
+              path: `docs/file-${index}.md`
+            }));
+            let fileCalls = 0;
+            const directoryFetch = async (url) => {
+              if (url.includes('/contents/docs?')) {
+                return {
+                  ok: true,
+                  status: 200,
+                  headers: { get: () => 'application/json; charset=utf-8' },
+                  text: async () => JSON.stringify(directoryEntries)
+                };
+              }
+              fileCalls += 1;
+              return {
+                ok: true,
+                status: 200,
+                headers: {
+                  get: (name) => name.toLowerCase() === 'content-length' ? '12' : 'text/plain'
+                },
+                text: async () => 'bounded file'
+              };
+            };
+
+            WB.importGitHubPath({
+              owner: 'acme',
+              repo: 'risk-repo',
+              ref: 'main',
+              path: 'docs'
+            }, directoryFetch).then((boundedItems) => {
+              assert.equal(boundedItems.length, 25);
+              assert.equal(fileCalls, 25);
+              console.log(JSON.stringify({ bounded: boundedItems.length, fileCalls }));
+            }).catch((error) => {
+              console.error(error);
+              process.exit(1);
+            });
+            """
+        )
+
+        self.assertEqual(run_node(script), {"bounded": 25, "fileCalls": 25})
+
+
+if __name__ == "__main__":
+    unittest.main()
