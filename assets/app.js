@@ -818,6 +818,7 @@
       ],
       limitations: [
         "This browser run uses typed and imported evidence only.",
+        "The website/reference URL is not fetched by this static page; current filings, agency records, websites, and news must be imported or researched separately.",
         "Private GitHub imports use a token only for the current fetch request.",
         "Use the prompt pack for live research and source-bound LLM enrichment.",
         "Risk scoring is deterministic and should be reviewed by accountable management before use."
@@ -2023,7 +2024,7 @@
     global.document.getElementById("riskCount").textContent = String(assessment.risk_register.length);
     global.document.getElementById("gateDetails").innerHTML = assessment.review_gate.errors.length
       ? "<ul>" + assessment.review_gate.errors.map(function (item) { return "<li>" + escapeHtml(item) + "</li>"; }).join("") + "</ul>"
-      : "<p>Review gate passed for this draft. Every risk has category-relevant source-bound evidence, unique IDs, and valid residual-score rules.</p>";
+      : "<p>Review gate passed for supplied evidence only. Every risk has category-relevant evidence, unique IDs, and valid residual-score rules, but this does not confirm live source completeness, current filings, agency records, websites, or news.</p>";
     var qualityReview = global.document.getElementById("qualityReview");
     if (qualityReview) {
       qualityReview.innerHTML = renderQualityReview(assessment);

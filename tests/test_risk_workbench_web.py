@@ -76,7 +76,9 @@ class RiskWorkbenchWebTests(unittest.TestCase):
         self.assertIn(".progressive-panel summary", css)
         self.assertIn(".empty-state", css)
         self.assertIn(".workflow-strip", css)
-        self.assertIn("20260708-simple-flow", html)
+        self.assertIn("20260709-research-boundary", html)
+        self.assertIn("Research boundary", html)
+        self.assertIn("does not fetch websites, SEC filings, FERC records, or news", html)
 
     def test_generator_builds_cause_event_consequence_register_and_quality_fields(self):
         script = textwrap.dedent(
@@ -611,6 +613,7 @@ class RiskWorkbenchWebTests(unittest.TestCase):
             assert.ok(detailed.includes('Control Assurance Plan'));
             assert.ok(detailed.includes('30 / 60 / 90 Day Workplan'));
             assert.ok(board.includes('Risk Deep Dives'));
+            assert.ok(board.includes('The website/reference URL is not fetched by this static page'));
 
             console.log(JSON.stringify({
               boardLines: board.split('\\n').length,

@@ -8,7 +8,7 @@
       content="default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self' https://api.github.com; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'none'"
     >
     <title>Risk Workbench</title>
-    <link rel="stylesheet" href="assets/styles.css?v=20260708-simple-flow">
+    <link rel="stylesheet" href="assets/styles.css?v=20260709-research-boundary">
   </head>
   <body>
     <header class="app-header">
@@ -143,6 +143,7 @@
 
         <div class="notice">
           <strong>Privacy mode:</strong> generation runs in this browser. No AI calls, telemetry, or remote logging are used. GitHub import is the only external request path and only runs when you click import.
+          <strong>Research boundary:</strong> the website URL is stored as context only. This static page does not fetch websites, SEC filings, FERC records, or news; PASS means the supplied evidence is structured enough for a draft, not that live research is complete.
         </div>
 
         <div id="emptyOutputState" class="empty-state">
@@ -252,6 +253,6 @@
       </section>
     </main>
 
-    <script src="assets/app.js?v=20260708-simple-flow"></script>
+    <script src="assets/app.js?v=20260709-research-boundary"></script>
   </body>
 </html>
